@@ -7,7 +7,7 @@ on:
 
 jobs:
   build:
-    runs-on: ubuntu-latest
+    runs-on: macos-13
 
     steps:
       - name: Checkout repository
@@ -15,24 +15,9 @@ jobs:
         with:
           submodules: false
 
-      - name: Install Dependencies & Theos
+      - name: Install Theos & SDKs
         run: |
-          sudo apt-get update
-          sudo apt-get install -y fakeroot git perl clang llvm lld make curl unzip
-          
-          # Install ldid code-signing utility
-          curl -sL https://github.com/ProcursusTeam/ldid/releases/latest/download/ldid_linux_x86_64 -o /tmp/ldid
-          chmod +x /tmp/ldid
-          sudo mv /tmp/ldid /usr/local/bin/ldid
-
-          # Clone Theos
-          git clone https://github.com/theos/theos.git ~/theos
-
-          # Download and extract the official Linux toolchain manually without permission prompts
-          curl -sL https://github.com/theos/toolchain-linux/releases/latest/download/linux.tar.zst -o /tmp/linux.tar.zst
-          sudo apt-get install -y zstd
-          tar -C ~/theos -xf /tmp/linux.tar.zst
-
+          git clone --recursive https://github.com/theos/theos.git ~/theos
           # Download official iOS SDKs
           curl -sL https://github.com/theos/sdks/archive/master.zip -o /tmp/sdks.zip
           unzip -q /tmp/sdks.zip -d /tmp/
@@ -40,7 +25,7 @@ jobs:
 
       - name: Build Dylib
         env:
-          THEOS: /home/runner/theos
+          THEOS: /Users/runner/theos
         run: |
           make
 
