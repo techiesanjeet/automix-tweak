@@ -7,27 +7,23 @@ on:
 
 jobs:
   build:
-    runs-on: macos-13
+    runs-on: macos-latest
 
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
-        with:
-          submodules: false
 
-      - name: Install Theos & SDKs
+      - name: Install Theos
         run: |
+          echo "Installing Theos..."
           git clone --recursive https://github.com/theos/theos.git ~/theos
-          # Download official iOS SDKs
-          curl -sL https://github.com/theos/sdks/archive/master.zip -o /tmp/sdks.zip
-          unzip -q /tmp/sdks.zip -d /tmp/
-          mv /tmp/sdks-master/*.sdk ~/theos/sdks/
 
       - name: Build Dylib
+        run: |
+          export THEOS=~/theos
+          make
         env:
           THEOS: /Users/runner/theos
-        run: |
-          make
 
       - name: Upload Dylib Artifact
         uses: actions/upload-artifact@v4
