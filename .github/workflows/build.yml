@@ -12,6 +12,8 @@ jobs:
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
+        with:
+          submodules: false
 
       - name: Install Dependencies & Theos
         run: |
@@ -23,10 +25,10 @@ jobs:
           chmod +x /tmp/ldid
           sudo mv /tmp/ldid /usr/local/bin/ldid
 
-          # Clone Theos
-          git clone --recursive https://github.com/theos/theos.git ~/theos
+          # Clone Theos non-recursively to avoid submodule issues
+          git clone https://github.com/theos/theos.git ~/theos
 
-          # Install Theos Linux Toolchain using their official installer script
+          # Run the official Theos installer script to set up compilers/toolchain
           ~/theos/bin/install-theos -f
 
           # Download official iOS SDKs
