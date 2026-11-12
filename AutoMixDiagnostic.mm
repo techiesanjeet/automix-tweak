@@ -215,7 +215,6 @@ static NSString *AMBuildReport(void) {
 }
 @end
 
-%ctor_placeholder
 __attribute__((constructor))
 static void AMDiagnosticInit(void) {
     dispatch_after(dispatch_time(DISPATCH_TIME_NOW, (int64_t)(12 * NSEC_PER_SEC)),
