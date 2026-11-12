@@ -18,20 +18,19 @@ jobs:
       - name: Install ldid
         run: brew install ldid
 
-      - name: Install Theos & SDKs Safely
+      - name: Install Theos & SDKs Locally
         run: |
-          git clone https://github.com/theos/theos.git ~/theos
-          # Initialize submodules safely inside the user directory without permission issues
-          cd ~/theos && git submodule update --init --recursive
+          git clone https://github.com/theos/theos.git theos
           
           # Download official iOS SDKs
-          curl -sL https://github.com/theos/sdks/archive/master.zip -o /tmp/sdks.zip
-          unzip -q /tmp/sdks.zip -d /tmp/
-          mv /tmp/sdks-master/*.sdk ~/theos/sdks/
+          curl -sL https://github.com/theos/sdks/archive/master.zip -o sdks.zip
+          unzip -q sdks.zip -d ./
+          mv sdks-master/*.sdk theos/sdks/
+          rm sdks.zip
 
       - name: Build Dylib
         env:
-          THEOS: /Users/runner/theos
+          THEOS: ${{ github.workspace }}/theos
         run: |
           make
 
