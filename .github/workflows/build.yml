@@ -2,25 +2,33 @@ name: Build AutoMixEngine Dylib
 
 on:
   push:
-    branches: [ "main" ]
+    branches: [ "main", "master" ]
   workflow_dispatch:
 
 jobs:
   build:
-    runs-on: ubuntu-latest
-    container:
-      image: theos/theos:latest
+    runs-on: macos-latest
 
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
 
+      - name: Install Theos
+        run: |
+          echo "Installing Theos..."
+          git clone --recursive https://github.com/theos/theos.git ~/theos
+
       - name: Build Dylib
         run: |
+          export THEOS=~/theos
           make
+        env:
+          THEOS: /Users/runner/theos
 
       - name: Upload Dylib Artifact
         uses: actions/upload-artifact@v4
         with:
           name: AutoMixEngine-dylib
-          path: .theos/obj/debug/AutoMixEngine.dylib
+          path: |
+            .theos/obj/debug/*.dylib
+            obj/*.dylib
