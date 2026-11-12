@@ -13,23 +13,14 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v4
 
-      - name: Install Dependencies & Theos
-        run: |
-          sudo apt-get update
-          sudo apt-get install -y clang make git ldid
-          git clone --recursive https://github.com/theos/theos.git ~/theos
+      - name: Setup Theos
+        uses: theos/setup-theos@v1
 
       - name: Build Dylib
-        run: |
-          export THEOS=~/theos
-          make
-        env:
-          THEOS: /home/runner/theos
+        run: make
 
       - name: Upload Dylib Artifact
         uses: actions/upload-artifact@v4
         with:
           name: AutoMixEngine-dylib
-          path: |
-            .theos/obj/debug/*.dylib
-            obj/*.dylib
+          path: .theos/obj/debug/*.dylib
