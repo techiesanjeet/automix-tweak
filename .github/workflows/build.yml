@@ -16,7 +16,7 @@ jobs:
       - name: Install Dependencies
         run: |
           sudo apt-get update
-          sudo apt-get install -y fakeroot git perl clang llvm lld make curl unzip
+          sudo apt-get install -y fakeroot git perl clang llvm lld make curl unzip zstd
 
       - name: Install ldid
         run: |
@@ -24,9 +24,12 @@ jobs:
           chmod +x /tmp/ldid
           sudo mv /tmp/ldid /usr/local/bin/ldid
 
-      - name: Set up Theos & SDKs
+      - name: Setup Theos, Toolchain & SDKs
         run: |
           git clone --recursive https://github.com/theos/theos.git ~/theos
+          # Download and extract the official Theos Linux toolchain
+          curl -sL https://github.com/theos/toolchain-linux/releases/latest/download/linux.tar.zst -o /tmp/linux.tar.zst
+          tar -C ~/theos -xf /tmp/linux.tar.zst
           # Download official iOS SDKs
           curl -sL https://github.com/theos/sdks/archive/master.zip -o /tmp/sdks.zip
           unzip -q /tmp/sdks.zip -d /tmp/
