@@ -13,11 +13,29 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v4
 
-      - name: Setup Theos
-        uses: theos/setup-theos@v1
+      - name: Install Toolchain & Dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y fakeroot git perl clang llvm lld make curl unzip
+
+      - name: Install ldid
+        run: |
+          curl -sL https://github.com/ProcursusTeam/ldid/releases/latest/download/ldid_linux_x86_64 -o /tmp/ldid
+          chmod +x /tmp/ldid
+          sudo mv /tmp/ldid /usr/local/bin/ldid
+
+      - name: Install Theos & iOS SDK
+        run: |
+          git clone --recursive https://github.com/theos/theos.git ~/theos
+          curl -sL https://github.com/theos/sdks/archive/master.zip -o /tmp/sdks.zip
+          unzip -q /tmp/sdks.zip -d /tmp/
+          mv /tmp/sdks-master/*.sdk ~/theos/sdks/
 
       - name: Build Dylib
-        run: make
+        env:
+          THEOS: /home/runner/theos
+        run: |
+          make
 
       - name: Upload Dylib Artifact
         uses: actions/upload-artifact@v4
