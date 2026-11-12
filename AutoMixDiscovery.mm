@@ -3,266 +3,179 @@
 #import <objc/runtime.h>
 #import <mach-o/dyld.h>
 
-static NSString * const kReportName = @"AutoMix-Spotify-Discovery-v2.txt";
+static NSString * const kReportName = @"AutoMix-Spotify-Discovery-v3.txt";
 
-static NSArray<NSString *> *AMKeywords(void) {
-    return @[@"player", @"audio", @"stream", @"queue", @"track", @"playback",
-             @"decoder", @"render", @"engine", @"mix", @"deck", @"session",
-             @"media", @"crossfade", @"automix", @"pipeline", @"buffer",
-             @"stateful", @"spotify", @"remote", @"music", @"output"];
+static BOOL AMIsTarget(NSString *name) {
+    NSString *s = name.lowercaseString;
+    return [s containsString:@"playlistmixing_"] ||
+           [s containsString:@"spotify_automix_"] ||
+           [s containsString:@"multiplayer_"] ||
+           [s containsString:@"nowplaying_mixingtransition"] ||
+           [s containsString:@"crossfade"] ||
+           [s containsString:@"automixtransition"] ||
+           [s containsString:@"transitionplayer"] ||
+           [s containsString:@"playergroup"] ||
+           [s containsString:@"internalplayer"];
 }
 
-static BOOL AMMatches(NSString *value) {
-    NSString *lower = value.lowercaseString;
-    for (NSString *word in AMKeywords()) {
-        if ([lower containsString:word]) return YES;
-    }
-    return NO;
+static NSString *AMPath(void) {
+    NSString *d = NSSearchPathForDirectoriesInDomains(NSDocumentDirectory, NSUserDomainMask, YES).firstObject;
+    return [d stringByAppendingPathComponent:kReportName];
 }
 
-static NSString *AMDocumentsPath(void) {
-    NSString *docs = NSSearchPathForDirectoriesInDomains(NSDocumentDirectory, NSUserDomainMask, YES).firstObject;
-    return [docs stringByAppendingPathComponent:kReportName];
+static void AMMethods(NSMutableString *out, Class cls, BOOL classMethods) {
+    unsigned int n = 0;
+    Method *list = class_copyMethodList(classMethods ? object_getClass(cls) : cls, &n);
+    NSUInteger shown = 0;
+    for (unsigned int i = 0; list && i < n && shown < 22; i++) {
+        const char *sel = sel_getName(method_getName(list[i]));
+        if (sel) { [out appendFormat:@"  %@ %s\n", classMethods ? @"+" : @"-", sel]; shown++; }
+    }
+    if (n > shown) [out appendFormat:@"  ... %u more\n", (unsigned)(n - shown)];
+    if (list) free(list);
+    if (!n) [out appendString:@"  (none exposed)\n"];
 }
 
-static void AMAppendMethods(NSMutableString *out, Class cls, BOOL classMethods) {
-    unsigned int count = 0;
-    Method *methods = class_copyMethodList(classMethods ? object_getClass(cls) : cls, &count);
-    if (!methods) {
-        [out appendString:@"  (no Objective-C runtime methods exposed)\n"];
-        return;
-    }
+static void AMDescribe(NSMutableString *out, Class cls) {
+    const char *raw = class_getName(cls);
+    if (!raw) return;
+    NSString *name = [NSString stringWithUTF8String:raw];
+    const char *img = class_getImageName(cls);
+    [out appendFormat:@"\n## %@\nImage: %@\n", name, img ? [NSString stringWithUTF8String:img] : @"?"];
+    Class sup = class_getSuperclass(cls);
+    [out appendFormat:@"Superclass: %@\n", sup ? NSStringFromClass(sup) : @"(none)"];
 
-    unsigned int emitted = 0;
-    for (unsigned int i = 0; i < count && emitted < 35; i++) {
-        SEL selector = method_getName(methods[i]);
-        const char *name = sel_getName(selector);
-        if (name) {
-            [out appendFormat:@"  %@ %s\n", classMethods ? @"+" : @"-", name];
-            emitted++;
-        }
+    unsigned int n = 0;
+    Ivar *iv = class_copyIvarList(cls, &n);
+    [out appendFormat:@"Ivars (%u):\n", n];
+    for (unsigned int i = 0; iv && i < n && i < 24; i++) {
+        const char *vn = ivar_getName(iv[i]), *vt = ivar_getTypeEncoding(iv[i]);
+        [out appendFormat:@"  %s : %s\n", vn ?: "?", vt ?: "?"];
     }
-    if (count > emitted) [out appendFormat:@"  ... %u additional methods omitted\n", count - emitted];
-    free(methods);
+    if (iv) free(iv);
+
+    objc_property_t *props = class_copyPropertyList(cls, &n);
+    [out appendFormat:@"Properties (%u):\n", n];
+    for (unsigned int i = 0; props && i < n && i < 18; i++) {
+        const char *pn = property_getName(props[i]), *pa = property_getAttributes(props[i]);
+        [out appendFormat:@"  %s [%s]\n", pn ?: "?", pa ?: "?"];
+    }
+    if (props) free(props);
+
+    Protocol *__unsafe_unretained *protocols = class_copyProtocolList(cls, &n);
+    [out appendFormat:@"Protocols (%u):\n", n];
+    for (unsigned int i = 0; protocols && i < n && i < 18; i++) {
+        const char *pn = protocol_getName(protocols[i]);
+        if (pn) [out appendFormat:@"  %s\n", pn];
+    }
+    if (protocols) free(protocols);
+
+    [out appendString:@"Instance selectors:\n"]; AMMethods(out, cls, NO);
+    [out appendString:@"Class selectors:\n"]; AMMethods(out, cls, YES);
 }
 
-static void AMAppendClass(NSMutableString *out, Class cls) {
-    const char *rawName = class_getName(cls);
-    if (!rawName) return;
-
-    NSString *name = [NSString stringWithUTF8String:rawName];
-    const char *rawImage = class_getImageName(cls);
-    NSString *imagePath = rawImage ? [NSString stringWithUTF8String:rawImage] : @"(image unavailable)";
-    Class superClass = class_getSuperclass(cls);
-    NSString *superName = superClass ? NSStringFromClass(superClass) : @"(none)";
-
-    [out appendFormat:@"\n========== %@ ==========\nImage: %@\nSuperclass: %@\n", name, imagePath, superName];
-
-    unsigned int ivarCount = 0;
-    Ivar *ivars = class_copyIvarList(cls, &ivarCount);
-    [out appendFormat:@"Instance variables (%u):\n", ivarCount];
-    for (unsigned int i = 0; i < ivarCount && i < 50; i++) {
-        const char *ivarName = ivar_getName(ivars[i]);
-        const char *type = ivar_getTypeEncoding(ivars[i]);
-        [out appendFormat:@"  %s : %s\n", ivarName ?: "?", type ?: "?"];
-    }
-    if (ivarCount > 50) [out appendFormat:@"  ... %u additional ivars omitted\n", ivarCount - 50];
-    free(ivars);
-
-    unsigned int propertyCount = 0;
-    objc_property_t *properties = class_copyPropertyList(cls, &propertyCount);
-    [out appendFormat:@"Properties (%u):\n", propertyCount];
-    for (unsigned int i = 0; i < propertyCount && i < 35; i++) {
-        const char *propertyName = property_getName(properties[i]);
-        const char *attributes = property_getAttributes(properties[i]);
-        [out appendFormat:@"  %s [%s]\n", propertyName ?: "?", attributes ?: "?"];
-    }
-    free(properties);
-
-    [out appendFormat:@"Instance methods:\n"];
-    AMAppendMethods(out, cls, NO);
-    [out appendFormat:@"Class methods:\n"];
-    AMAppendMethods(out, cls, YES);
-}
-
-static NSString *AMBuildReport(void) {
+static NSString *AMReport(void) {
     NSMutableString *out = [NSMutableString string];
-    NSDateFormatter *formatter = [[NSDateFormatter alloc] init];
-    formatter.locale = [NSLocale localeWithLocaleIdentifier:@"en_US_POSIX"];
-    formatter.timeZone = [NSTimeZone timeZoneForSecondsFromGMT:0];
-    formatter.dateFormat = @"yyyy-MM-dd HH:mm:ss 'UTC'";
-
-    [out appendString:@"AUTOMIX TARGETED PLAYBACK DISCOVERY V2\n"];
-    [out appendFormat:@"Bundle: %@\n", NSBundle.mainBundle.bundleIdentifier ?: @"unknown"];
-    [out appendFormat:@"Version: %@ (%@)\n",
-     NSBundle.mainBundle.infoDictionary[@"CFBundleShortVersionString"] ?: @"unknown",
-     NSBundle.mainBundle.infoDictionary[@"CFBundleVersion"] ?: @"unknown"];
-    [out appendFormat:@"Timestamp: %@\n", [formatter stringFromDate:[NSDate date]]];
-    [out appendString:@"Metadata-only scan: no Spotify methods are invoked; no audio buffers, decoded media, credentials, or track contents are read.\n\n"];
-
-    uint32_t imageCount = _dyld_image_count();
-    [out appendFormat:@"Loaded Mach-O images: %u\n", imageCount];
-    [out appendString:@"Relevant loaded images:\n"];
-    unsigned int relevantImages = 0;
-    for (uint32_t i = 0; i < imageCount; i++) {
-        const char *path = _dyld_get_image_name(i);
-        if (!path) continue;
-        NSString *image = [NSString stringWithUTF8String:path];
-        if (AMMatches(image)) {
-            [out appendFormat:@"  %@\n", image];
-            relevantImages++;
-        }
-    }
-    [out appendFormat:@"Relevant image count: %u\n\n", relevantImages];
-
+    [out appendString:@"AUTOMIX TARGETED DISCOVERY V3\n"];
+    [out appendFormat:@"Bundle: %@\nVersion: %@ (%@)\n",
+     NSBundle.mainBundle.bundleIdentifier ?: @"?",
+     NSBundle.mainBundle.infoDictionary[@"CFBundleShortVersionString"] ?: @"?",
+     NSBundle.mainBundle.infoDictionary[@"CFBundleVersion"] ?: @"?"];
+    [out appendFormat:@"Date: %@\n", [NSDate date]];
+    [out appendString:@"Metadata-only. No Spotify methods invoked; no audio buffers or media contents read.\n"];
     int total = objc_getClassList(NULL, 0);
-    if (total <= 0) {
-        [out appendString:@"Objective-C runtime returned no classes.\n"];
-        return out;
-    }
-
+    if (total <= 0) return [out stringByAppendingString:@"No Objective-C classes returned.\n"];
     Class *classes = (Class *)calloc((size_t)total, sizeof(Class));
     int actual = objc_getClassList(classes, total);
-    [out appendFormat:@"Runtime classes scanned: %d\n", actual];
-
-    NSMutableArray<NSString *> *matchedNames = [NSMutableArray array];
-    NSMutableDictionary<NSString *, NSValue *> *classByName = [NSMutableDictionary dictionary];
-
+    NSMutableArray<NSString *> *names = [NSMutableArray array];
+    NSMutableDictionary<NSString *, NSValue *> *map = [NSMutableDictionary dictionary];
     for (int i = 0; i < actual; i++) {
         const char *raw = class_getName(classes[i]);
         if (!raw) continue;
         NSString *name = [NSString stringWithUTF8String:raw];
-        if (AMMatches(name)) {
-            [matchedNames addObject:name];
-            classByName[name] = [NSValue valueWithPointer:(__bridge const void *)classes[i]];
+        if (AMIsTarget(name)) {
+            [names addObject:name];
+            map[name] = [NSValue valueWithPointer:(__bridge const void *)classes[i]];
         }
     }
-
-    [matchedNames sortUsingSelector:@selector(localizedCaseInsensitiveCompare:)];
-    [out appendFormat:@"Target classes matched: %lu\n", (unsigned long)matchedNames.count];
-    [out appendString:@"\nCLASS INDEX (all matches):\n"];
-    for (NSString *name in matchedNames) [out appendFormat:@"  %@\n", name];
-
-    [out appendString:@"\nDETAILED METADATA (up to 450 classes; class names, image paths, ivars, properties and selectors only):\n"];
-    NSUInteger detailCount = MIN((NSUInteger)450, matchedNames.count);
-    for (NSUInteger i = 0; i < detailCount; i++) {
-        Class cls = (__bridge Class)[classByName[matchedNames[i]] pointerValue];
-        AMAppendClass(out, cls);
-        if (out.length > 1800000) {
-            [out appendString:@"\nREPORT SIZE LIMIT REACHED; remaining class details omitted.\n"];
+    [names sortUsingSelector:@selector(localizedCaseInsensitiveCompare:)];
+    [out appendFormat:@"Runtime classes scanned: %d\nTarget classes: %lu\n\nTARGET CLASS INDEX:\n",
+     actual, (unsigned long)names.count];
+    for (NSString *name in names) [out appendFormat:@"%@\n", name];
+    [out appendString:@"\nTARGETED METADATA:\n"];
+    NSUInteger limit = MIN((NSUInteger)100, names.count);
+    for (NSUInteger i = 0; i < limit; i++) {
+        Class cls = (__bridge Class)[map[names[i]] pointerValue];
+        AMDescribe(out, cls);
+        if (out.length > 70000) {
+            [out appendString:@"\nSIZE CAP REACHED; remaining details omitted.\n"];
             break;
         }
     }
-    if (matchedNames.count > detailCount) {
-        [out appendFormat:@"\n%lu matching classes omitted from detailed section due to safety/output limit.\n",
-         (unsigned long)(matchedNames.count - detailCount)];
-    }
-
+    if (names.count > limit) [out appendFormat:@"\n%lu classes omitted from details.\n", (unsigned long)(names.count-limit)];
     free(classes);
     return out;
 }
 
-static void AMRunScan(void) {
+static void AMWriteReport(void) {
     @autoreleasepool {
-        NSString *report = AMBuildReport();
-        NSError *error = nil;
-        BOOL ok = [report writeToFile:AMDocumentsPath()
-                           atomically:YES
-                             encoding:NSUTF8StringEncoding
-                                error:&error];
-        NSLog(@"[AutoMixDiscoveryV2] %@ (%lu chars) %@",
-              ok ? @"Report saved" : @"Report save failed",
-              (unsigned long)report.length,
-              error.localizedDescription ?: AMDocumentsPath());
+        NSString *s = AMReport();
+        NSError *e = nil;
+        BOOL ok = [s writeToFile:AMPath() atomically:YES encoding:NSUTF8StringEncoding error:&e];
+        NSLog(@"[AutoMixDiscoveryV3] %@; %lu chars; %@", ok ? @"saved" : @"failed",
+              (unsigned long)s.length, e.localizedDescription ?: AMPath());
     }
 }
 
-@interface AMDiscoveryButton : NSObject
-@property(nonatomic, strong) UIButton *button;
+@interface AMV3Button : NSObject
+@property(nonatomic,strong) UIButton *button;
 + (instancetype)shared;
 - (void)install;
 @end
 
-@implementation AMDiscoveryButton
-
+@implementation AMV3Button
 + (instancetype)shared {
-    static AMDiscoveryButton *instance;
-    static dispatch_once_t onceToken;
-    dispatch_once(&onceToken, ^{ instance = [AMDiscoveryButton new]; });
-    return instance;
+    static AMV3Button *v; static dispatch_once_t once;
+    dispatch_once(&once, ^{ v = [AMV3Button new]; }); return v;
 }
-
-- (UIWindow *)activeWindow {
+- (UIWindow *)window {
     for (UIScene *scene in UIApplication.sharedApplication.connectedScenes) {
-        if (scene.activationState != UISceneActivationStateForegroundActive) continue;
-        if (![scene isKindOfClass:UIWindowScene.class]) continue;
-        for (UIWindow *window in ((UIWindowScene *)scene).windows) {
-            if (window.isKeyWindow) return window;
-        }
+        if (scene.activationState != UISceneActivationStateForegroundActive || ![scene isKindOfClass:UIWindowScene.class]) continue;
+        for (UIWindow *w in ((UIWindowScene *)scene).windows) if (w.isKeyWindow) return w;
     }
     return UIApplication.sharedApplication.windows.firstObject;
 }
-
 - (void)install {
     if (self.button) return;
-    UIWindow *window = [self activeWindow];
-    if (!window) {
-        dispatch_after(dispatch_time(DISPATCH_TIME_NOW, (int64_t)(2 * NSEC_PER_SEC)),
-                       dispatch_get_main_queue(), ^{ [self install]; });
-        return;
-    }
-
+    UIWindow *w = [self window];
+    if (!w) { dispatch_after(dispatch_time(DISPATCH_TIME_NOW, 2*NSEC_PER_SEC), dispatch_get_main_queue(), ^{ [self install]; }); return; }
     self.button = [UIButton buttonWithType:UIButtonTypeSystem];
-    self.button.frame = CGRectMake(MAX(8, window.bounds.size.width - 118), 155, 108, 36);
-    self.button.backgroundColor = [UIColor colorWithRed:0.10 green:0.72 blue:0.34 alpha:0.96];
-    [self.button setTitle:@"SCAN + SHARE" forState:UIControlStateNormal];
+    self.button.frame = CGRectMake(MAX(8, w.bounds.size.width-124), 198, 116, 38);
+    self.button.backgroundColor = [UIColor colorWithRed:.1 green:.8 blue:.55 alpha:.96];
+    [self.button setTitle:@"AUTOMIX SCAN V3" forState:UIControlStateNormal];
     [self.button setTitleColor:UIColor.blackColor forState:UIControlStateNormal];
-    self.button.titleLabel.font = [UIFont boldSystemFontOfSize:11];
-    self.button.layer.cornerRadius = 10;
-    [self.button addTarget:self action:@selector(scanAndShare) forControlEvents:UIControlEventTouchUpInside];
-    [window addSubview:self.button];
+    self.button.titleLabel.font = [UIFont boldSystemFontOfSize:10];
+    self.button.layer.cornerRadius = 9;
+    [self.button addTarget:self action:@selector(scan) forControlEvents:UIControlEventTouchUpInside];
+    [w addSubview:self.button];
 }
-
-- (void)scanAndShare {
-    self.button.enabled = NO;
-    [self.button setTitle:@"SCANNING..." forState:UIControlStateNormal];
-
-    dispatch_async(dispatch_get_global_queue(QOS_CLASS_UTILITY, 0), ^{
-        AMRunScan();
+- (void)scan {
+    self.button.enabled = NO; [self.button setTitle:@"SCANNING..." forState:UIControlStateNormal];
+    dispatch_async(dispatch_get_global_queue(QOS_CLASS_UTILITY,0), ^{
+        AMWriteReport();
         dispatch_async(dispatch_get_main_queue(), ^{
-            self.button.enabled = YES;
-            [self.button setTitle:@"SCAN + SHARE" forState:UIControlStateNormal];
-
-            NSString *path = AMDocumentsPath();
-            NSURL *url = [NSURL fileURLWithPath:path];
-            UIActivityViewController *activity =
-                [[UIActivityViewController alloc] initWithActivityItems:@[url] applicationActivities:nil];
-
-            UIWindow *window = [self activeWindow];
-            UIViewController *presenter = window.rootViewController;
-            while (presenter.presentedViewController) presenter = presenter.presentedViewController;
-            if (presenter) {
-                if (activity.popoverPresentationController) {
-                    activity.popoverPresentationController.sourceView = self.button;
-                    activity.popoverPresentationController.sourceRect = self.button.bounds;
-                }
-                [presenter presentViewController:activity animated:YES completion:nil];
-            }
+            self.button.enabled = YES; [self.button setTitle:@"AUTOMIX SCAN V3" forState:UIControlStateNormal];
+            NSURL *url = [NSURL fileURLWithPath:AMPath()];
+            UIActivityViewController *a = [[UIActivityViewController alloc] initWithActivityItems:@[url] applicationActivities:nil];
+            UIViewController *p = [self window].rootViewController;
+            while (p.presentedViewController) p = p.presentedViewController;
+            if (a.popoverPresentationController) { a.popoverPresentationController.sourceView=self.button; a.popoverPresentationController.sourceRect=self.button.bounds; }
+            if (p) [p presentViewController:a animated:YES completion:nil];
         });
     });
 }
-
 @end
 
-__attribute__((constructor)) static void AMDiscoveryInit(void) {
-    @autoreleasepool {
-        dispatch_after(dispatch_time(DISPATCH_TIME_NOW, (int64_t)(12 * NSEC_PER_SEC)),
-                       dispatch_get_global_queue(QOS_CLASS_UTILITY, 0), ^{
-            AMRunScan();
-        });
-        dispatch_after(dispatch_time(DISPATCH_TIME_NOW, (int64_t)(15 * NSEC_PER_SEC)),
-                       dispatch_get_main_queue(), ^{
-            [[AMDiscoveryButton shared] install];
-        });
-    }
+__attribute__((constructor)) static void AMV3Init(void) {
+    dispatch_after(dispatch_time(DISPATCH_TIME_NOW, 15*NSEC_PER_SEC), dispatch_get_main_queue(), ^{ [[AMV3Button shared] install]; });
 }
