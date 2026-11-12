@@ -1,12 +1,10 @@
 TARGET := iphone:clang:latest:14.0
 ARCHS = arm64
 
-LIBRARY_NAME = AutoMixEngine
-
-AutoMixEngine_FILES = AutoMixEngine.mm fishhook.c
-AutoMixEngine_FRAMEWORKS = UIKit AudioToolbox Foundation CoreAudio
-AutoMixEngine_CFLAGS = -fobjc-arc
-AutoMixEngine_CXXFLAGS = -std=c++17
+LIBRARY_NAME = AutoMixDiscovery
+AutoMixDiscovery_FILES = AutoMixDiscovery.mm
+AutoMixDiscovery_FRAMEWORKS = UIKit Foundation
+AutoMixDiscovery_CFLAGS = -fobjc-arc
 
 include $(THEOS)/makefiles/common.mk
 include $(THEOS)/makefiles/library.mk
