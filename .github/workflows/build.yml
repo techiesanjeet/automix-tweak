@@ -1,0 +1,26 @@
+name: Build AutoMixEngine Dylib
+
+on:
+  push:
+    branches: [ "main" ]
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    container:
+      image: theos/theos:latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Build Dylib
+        run: |
+          make
+
+      - name: Upload Dylib Artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: AutoMixEngine-dylib
+          path: .theos/obj/debug/AutoMixEngine.dylib
