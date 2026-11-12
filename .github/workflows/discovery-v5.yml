@@ -1,0 +1,40 @@
+name: AutoMix Discovery V5 (Diagnostics Only)
+on:
+  workflow_dispatch:
+  push:
+    branches:
+      - diagnostics/spotify-playback-discovery-v5
+jobs:
+  build:
+    runs-on: macos-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+      - name: Install dependencies
+        run: brew install ldid xz
+      - name: Install Theos
+        run: |
+          export THEOS="$GITHUB_WORKSPACE/theos"
+          git clone --recursive https://github.com/theos/theos.git "$THEOS"
+          echo "THEOS=$THEOS" >> "$GITHUB_ENV"
+      - name: Install iOS SDKs
+        run: |
+          mkdir -p "$THEOS/sdks"
+          curl -fL https://github.com/theos/sdks/archive/master.zip -o sdks.zip
+          mkdir -p sdk-temp
+          ditto -x -k sdks.zip sdk-temp
+          find sdk-temp -type d -name "*.sdk" -prune -exec mv {} "$THEOS/sdks/" \;
+          rm -rf sdks.zip sdk-temp
+          test -n "$(find "$THEOS/sdks" -name '*.sdk' -print -quit)"
+      - name: Build diagnostics dylib
+        run: |
+          make clean || true
+          make -f Makefile.discovery
+      - name: Upload diagnostics dylib
+        uses: actions/upload-artifact@v4
+        with:
+          name: AutoMixDiscoveryV5-diagnostics-only
+          path: |
+            .theos/obj/debug/*.dylib
+            obj/*.dylib
+          if-no-files-found: error
