@@ -1,64 +1,48 @@
-name: Build AutoMixEngine Dylib
+name: Build Spotify Discovery Diagnostic v2
 on:
   push:
     branches:
       - main
       - master
+      - diagnostics/spotify-playback-discovery-v2
   workflow_dispatch:
 jobs:
   build:
     runs-on: macos-latest
     steps:
-      # Checkout project
-      - name: Checkout repository
+      - name: Checkout project
         uses: actions/checkout@v4
         with:
           submodules: false
-      # Install build dependencies
-      - name: Install Dependencies
-        run: |
-          brew install ldid xz
-      # Install Theos
+      - name: Install build dependencies
+        run: brew install ldid xz
       - name: Install Theos
         run: |
           export THEOS="$GITHUB_WORKSPACE/theos"
-          git clone --recursive \
-            https://github.com/theos/theos.git \
-            "$THEOS"
+          git clone --recursive https://github.com/theos/theos.git "$THEOS"
           echo "THEOS=$THEOS" >> "$GITHUB_ENV"
-      # Download and extract iOS SDKs
       - name: Install iOS SDKs
         run: |
           mkdir -p "$THEOS/sdks"
-          curl -fL \
-            https://github.com/theos/sdks/archive/master.zip \
-            -o sdks.zip
+          curl -fL https://github.com/theos/sdks/archive/master.zip -o sdks.zip
           mkdir -p sdk-temp
           ditto -x -k sdks.zip sdk-temp
-          find sdk-temp -type d -name "*.sdk" -prune \
-            -exec mv {} "$THEOS/sdks/" \;
+          find sdk-temp -type d -name "*.sdk" -prune -exec mv {} "$THEOS/sdks/" \;
           rm -rf sdks.zip sdk-temp
           echo "Installed SDKs:"
           ls -la "$THEOS/sdks"
-      # Verify installation
       - name: Verify Theos and SDKs
         run: |
-          echo "Theos location: $THEOS"
           test -d "$THEOS"
           test -d "$THEOS/sdks"
           test -n "$(find "$THEOS/sdks" -name '*.sdk' -print -quit)"
-          echo "Theos and SDK installation successful!"
-      # Compile dylib
-      - name: Build Dylib
+      - name: Build diagnostic dylib
         run: |
           make clean || true
           make
-      # Upload compiled dylib
-      - name: Upload Dylib Artifact
+      - name: Upload diagnostic dylib
         uses: actions/upload-artifact@v4
         with:
-          name: AutoMixEngine-dylib
-          path: |
-            .theos/obj/debug/*.dylib
-            obj/*.dylib
+          name: AutoMixDiscovery-v2-dylib
+          path: .theos/obj/debug/*.dylib
           if-no-files-found: error
