@@ -1,11 +1,8 @@
-name: Build Spotify Targeted Discovery Diagnostic v3
+name: Build Spotify AutoMix Targeted Discovery Diagnostic v4
 on:
   push:
     branches:
-      - main
-      - master
-      - diagnostics/spotify-playback-discovery-v2
-      - diagnostics/spotify-playback-discovery-v3
+      - diagnostics/spotify-playback-discovery-v4
   workflow_dispatch:
 jobs:
   build:
@@ -13,8 +10,6 @@ jobs:
     steps:
       - name: Checkout project
         uses: actions/checkout@v4
-        with:
-          submodules: false
       - name: Install build dependencies
         run: brew install ldid xz
       - name: Install Theos
@@ -30,12 +25,10 @@ jobs:
           ditto -x -k sdks.zip sdk-temp
           find sdk-temp -type d -name "*.sdk" -prune -exec mv {} "$THEOS/sdks/" \;
           rm -rf sdks.zip sdk-temp
-          echo "Installed SDKs:"
           ls -la "$THEOS/sdks"
-      - name: Verify Theos and SDKs
+      - name: Verify toolchain
         run: |
           test -d "$THEOS"
-          test -d "$THEOS/sdks"
           test -n "$(find "$THEOS/sdks" -name '*.sdk' -print -quit)"
       - name: Build diagnostic dylib
         run: |
@@ -44,6 +37,6 @@ jobs:
       - name: Upload diagnostic dylib
         uses: actions/upload-artifact@v4
         with:
-          name: AutoMixDiscovery-v3-dylib
+          name: AutoMixDiscovery-v4-dylib
           path: .theos/obj/debug/*.dylib
           if-no-files-found: error
