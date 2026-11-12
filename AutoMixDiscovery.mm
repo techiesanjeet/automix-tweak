@@ -254,7 +254,7 @@ static void AMRunScan(void) {
 
 @end
 
-%ctor {
+__attribute__((constructor)) static void AMDiscoveryInit(void) {
     @autoreleasepool {
         dispatch_after(dispatch_time(DISPATCH_TIME_NOW, (int64_t)(12 * NSEC_PER_SEC)),
                        dispatch_get_global_queue(QOS_CLASS_UTILITY, 0), ^{
