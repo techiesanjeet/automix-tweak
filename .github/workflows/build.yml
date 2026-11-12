@@ -9,34 +9,51 @@ jobs:
   build:
     runs-on: macos-latest
     steps:
+      # Checkout project
       - name: Checkout repository
         uses: actions/checkout@v4
-      - name: Install ldid
-        run: brew install ldid xz
+        with:
+          submodules: false
+      # Install build dependencies
+      - name: Install Dependencies
+        run: |
+          brew install ldid xz
+      # Install Theos
       - name: Install Theos
         run: |
           export THEOS="$GITHUB_WORKSPACE/theos"
-          git clone --recursive https://github.com/theos/theos.git "$THEOS"
+          git clone --recursive \
+            https://github.com/theos/theos.git \
+            "$THEOS"
           echo "THEOS=$THEOS" >> "$GITHUB_ENV"
+      # Download and extract iOS SDKs
       - name: Install iOS SDKs
         run: |
           mkdir -p "$THEOS/sdks"
           curl -fL \
             https://github.com/theos/sdks/archive/master.zip \
             -o sdks.zip
-          unzip -q sdks.zip -d sdk-temp
-          find sdk-temp/sdks-master -name "*.sdk" -type d \
+          mkdir -p sdk-temp
+          ditto -x -k sdks.zip sdk-temp
+          find sdk-temp -type d -name "*.sdk" -prune \
             -exec mv {} "$THEOS/sdks/" \;
           rm -rf sdks.zip sdk-temp
-      - name: Verify Theos
+          echo "Installed SDKs:"
+          ls -la "$THEOS/sdks"
+      # Verify installation
+      - name: Verify Theos and SDKs
         run: |
+          echo "Theos location: $THEOS"
           test -d "$THEOS"
           test -d "$THEOS/sdks"
-          ls "$THEOS/sdks"
+          test -n "$(find "$THEOS/sdks" -name '*.sdk' -print -quit)"
+          echo "Theos and SDK installation successful!"
+      # Compile dylib
       - name: Build Dylib
         run: |
           make clean || true
           make
+      # Upload compiled dylib
       - name: Upload Dylib Artifact
         uses: actions/upload-artifact@v4
         with:
