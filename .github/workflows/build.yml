@@ -1,10 +1,11 @@
-name: Build Spotify Discovery Diagnostic v2
+name: Build Spotify Targeted Discovery Diagnostic v3
 on:
   push:
     branches:
       - main
       - master
       - diagnostics/spotify-playback-discovery-v2
+      - diagnostics/spotify-playback-discovery-v3
   workflow_dispatch:
 jobs:
   build:
@@ -43,6 +44,6 @@ jobs:
       - name: Upload diagnostic dylib
         uses: actions/upload-artifact@v4
         with:
-          name: AutoMixDiscovery-v2-dylib
+          name: AutoMixDiscovery-v3-dylib
           path: .theos/obj/debug/*.dylib
           if-no-files-found: error
