@@ -13,31 +13,10 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v4
 
-      - name: Install Dependencies
-        run: |
-          sudo apt-get update
-          sudo apt-get install -y fakeroot git perl clang llvm lld make curl unzip zstd
-
-      - name: Install ldid
-        run: |
-          curl -sL https://github.com/ProcursusTeam/ldid/releases/latest/download/ldid_linux_x86_64 -o /tmp/ldid
-          chmod +x /tmp/ldid
-          sudo mv /tmp/ldid /usr/local/bin/ldid
-
-      - name: Setup Theos, Toolchain & SDKs
-        run: |
-          git clone --recursive https://github.com/theos/theos.git ~/theos
-          # Download and extract the official Theos Linux toolchain
-          curl -sL https://github.com/theos/toolchain-linux/releases/latest/download/linux.tar.zst -o /tmp/linux.tar.zst
-          tar -C ~/theos -xf /tmp/linux.tar.zst
-          # Download official iOS SDKs
-          curl -sL https://github.com/theos/sdks/archive/master.zip -o /tmp/sdks.zip
-          unzip -q /tmp/sdks.zip -d /tmp/
-          mv /tmp/sdks-master/*.sdk ~/theos/sdks/
+      - name: Setup Theos
+        uses: engelgabriel/setup-theos@v1.0.0
 
       - name: Build Dylib
-        env:
-          THEOS: /home/runner/theos
         run: |
           make
 
@@ -45,4 +24,6 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: AutoMixEngine-dylib
-          path: .theos/obj/debug/*.dylib
+          path: |
+            .theos/obj/debug/*.dylib
+            obj/*.dylib
