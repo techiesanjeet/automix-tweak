@@ -1,39 +1,42 @@
 name: Build AutoMixEngine Dylib
-
 on:
   push:
-    branches: [ "main", "master" ]
+    branches:
+      - main
+      - master
   workflow_dispatch:
-
 jobs:
   build:
     runs-on: macos-latest
-
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
-        with:
-          submodules: false
-
       - name: Install ldid
-        run: brew install ldid
-
-      - name: Install Theos & SDKs Locally
+        run: brew install ldid xz
+      - name: Install Theos
         run: |
-          git clone https://github.com/theos/theos.git theos
-          
-          # Download official iOS SDKs
-          curl -sL https://github.com/theos/sdks/archive/master.zip -o sdks.zip
-          unzip -q sdks.zip -d ./
-          mv sdks-master/*.sdk theos/sdks/
-          rm sdks.zip
-
+          export THEOS="$GITHUB_WORKSPACE/theos"
+          git clone --recursive https://github.com/theos/theos.git "$THEOS"
+          echo "THEOS=$THEOS" >> "$GITHUB_ENV"
+      - name: Install iOS SDKs
+        run: |
+          mkdir -p "$THEOS/sdks"
+          curl -fL \
+            https://github.com/theos/sdks/archive/master.zip \
+            -o sdks.zip
+          unzip -q sdks.zip -d sdk-temp
+          find sdk-temp/sdks-master -name "*.sdk" -type d \
+            -exec mv {} "$THEOS/sdks/" \;
+          rm -rf sdks.zip sdk-temp
+      - name: Verify Theos
+        run: |
+          test -d "$THEOS"
+          test -d "$THEOS/sdks"
+          ls "$THEOS/sdks"
       - name: Build Dylib
-        env:
-          THEOS: ${{ github.workspace }}/theos
         run: |
+          make clean || true
           make
-
       - name: Upload Dylib Artifact
         uses: actions/upload-artifact@v4
         with:
@@ -41,3 +44,4 @@ jobs:
           path: |
             .theos/obj/debug/*.dylib
             obj/*.dylib
+          if-no-files-found: error
