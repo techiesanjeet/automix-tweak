@@ -2,6 +2,7 @@
 #import <Foundation/Foundation.h>
 #import <objc/runtime.h>
 #import <mach-o/dyld.h>
+#import <stdlib.h>
 
 static BOOL AMContainsAny(NSString *value, NSArray<NSString *> *needles) {
     NSString *lower = value.lowercaseString;
@@ -21,7 +22,7 @@ static NSString *AMRunPlaybackSurfaceScan(void) {
 
         NSArray<NSString *> *classNeedles = @[@"spotify", @"audio", @"player", @"playback", @"queue",
             @"track", @"decoder", @"stream", @"mixer", @"avplayer", @"crossfade", @"automix", @"render", @"media"];
-        NSArray<NSString *> *methodNeedles = @[@"play", @"audio", @"queue", @"track", @"decode", "render",
+        NSArray<NSString *> *methodNeedles = @[@"play", @"audio", @"queue", @"track", @"decode", @"render",
             @"stream", @"crossfade", @"automix", @"seek", @"load", @"prepare", @"engine", @"player", @"source", @"output"];
 
         int classCount = objc_getClassList(NULL, 0);
@@ -29,6 +30,7 @@ static NSString *AMRunPlaybackSurfaceScan(void) {
             [report appendString:@"Objective-C runtime returned no classes.\n"];
         } else {
             Class *classes = (Class *)calloc((size_t)classCount, sizeof(Class));
+            if (!classes) return @"AutoMix diagnostic: unable to allocate class list.";
             int actualCount = objc_getClassList(classes, classCount);
             [report appendFormat:@"Loaded Objective-C classes: %d\n", actualCount];
             NSUInteger emittedClasses = 0;
