@@ -13,23 +13,22 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v4
 
-      - name: Install Dependencies
+      - name: Install Dependencies & Theos
         run: |
           sudo apt-get update
-          sudo apt-get install -y fakeroot git perl clang llvm lld make curl unzip zstd
-
-      - name: Install ldid
-        run: |
+          sudo apt-get install -y fakeroot git perl clang llvm lld make curl unzip
+          
+          # Install ldid code-signing utility
           curl -sL https://github.com/ProcursusTeam/ldid/releases/latest/download/ldid_linux_x86_64 -o /tmp/ldid
           chmod +x /tmp/ldid
           sudo mv /tmp/ldid /usr/local/bin/ldid
 
-      - name: Setup Theos, Toolchain & SDKs
-        run: |
+          # Clone Theos
           git clone --recursive https://github.com/theos/theos.git ~/theos
-          # Download and install the official Theos Linux toolchain
-          curl -sL https://github.com/theos/toolchain-linux/releases/latest/download/linux.tar.zst -o /tmp/linux.tar.zst
-          tar -C ~/theos -xf /tmp/linux.tar.zst
+
+          # Install Theos Linux Toolchain using their official installer script
+          ~/theos/bin/install-theos -f
+
           # Download official iOS SDKs
           curl -sL https://github.com/theos/sdks/archive/master.zip -o /tmp/sdks.zip
           unzip -q /tmp/sdks.zip -d /tmp/
