@@ -37,7 +37,7 @@ static NSString *AMBuildReport(void) {
  NSMutableString *o=[NSMutableString string];[o appendString:@"AUTOMIX TARGETED DISCOVERY V4\n"];
  [o appendFormat:@"Bundle: %@\nVersion: %@ (%@)\nDate: %@\n",NSBundle.mainBundle.bundleIdentifier?: @"?",NSBundle.mainBundle.infoDictionary[@"CFBundleShortVersionString"]?: @"?",NSBundle.mainBundle.infoDictionary[@"CFBundleVersion"]?: @"?",[NSDate date]];
  [o appendString:@"READ-ONLY RUNTIME METADATA. Does not invoke Spotify methods, instantiate Spotify objects, read audio buffers, decode media, or inspect track contents.\n"];
- int total=objc_getClassList(NULL,0);Class *all=total>0?calloc((size_t)total,sizeof(Class)):NULL;int actual=all?objc_getClassList(all,total):0;
+ int total=objc_getClassList(NULL,0);__unsafe_unretained Class *all=total>0?(__unsafe_unretained Class *)calloc((size_t)total,sizeof(Class)):NULL;int actual=all?objc_getClassList(all,total):0;
  NSMutableDictionary *map=[NSMutableDictionary dictionary];for(int i=0;i<actual;i++){const char*n=class_getName(all[i]);if(n)map[[NSString stringWithUTF8String:n]]=[NSValue valueWithPointer:(__bridge const void*)all[i]];}
  [o appendFormat:@"Runtime classes scanned: %d\nFocus targets: %lu\n",actual,(unsigned long)AMFocusNames().count];
  NSMutableArray *missing=[NSMutableArray array];for(NSString *name in AMFocusNames()){NSValue*v=map[name];if(!v){[missing addObject:name];continue;}AMDescribe(o,(__bridge Class)v.pointerValue);if(o.length>180000){[o appendString:@"\nREPORT SIZE LIMIT REACHED.\n"];break;}}
