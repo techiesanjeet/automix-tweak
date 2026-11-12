@@ -1,0 +1,39 @@
+name: Build AutoMix targeted diagnostic
+on:
+  push:
+    branches:
+      - diagnostics/playlist-mixing-runtime
+  workflow_dispatch:
+jobs:
+  build:
+    runs-on: macos-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+      - name: Install dependencies
+        run: brew install ldid xz
+      - name: Install Theos
+        run: |
+          git clone --recursive https://github.com/theos/theos.git "$RUNNER_TEMP/theos"
+          echo "THEOS=$RUNNER_TEMP/theos" >> "$GITHUB_ENV"
+      - name: Install iOS SDKs
+        run: |
+          mkdir -p "$THEOS/sdks" sdk-temp
+          curl -fL https://github.com/theos/sdks/archive/master.zip -o sdks.zip
+          ditto -x -k sdks.zip sdk-temp
+          find sdk-temp -type d -name "*.sdk" -prune -exec mv {} "$THEOS/sdks/" \;
+          test -n "$(find "$THEOS/sdks" -maxdepth 1 -name '*.sdk' -print -quit)"
+      - name: Build diagnostic dylib
+        run: |
+          make clean || true
+          make
+          find .theos obj -name 'AutoMixDiagnostic.dylib' -print 2>/dev/null | grep .
+      - name: Upload diagnostic dylib
+        uses: actions/upload-artifact@v4
+        with:
+          name: AutoMixDiagnostic-dylib
+          path: |
+            .theos/obj/debug/AutoMixDiagnostic.dylib
+            .theos/obj/AutoMixDiagnostic.dylib
+            obj/AutoMixDiagnostic.dylib
+          if-no-files-found: error
