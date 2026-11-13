@@ -35,6 +35,8 @@ static UIWindow *AMKeyWindow(void) {
     return UIApplication.sharedApplication.windows.firstObject;
 }
 
+static void AMCollectSnapshot(NSString *reason);
+
 static void AMShowLog(void) {
     dispatch_async(dispatch_get_main_queue(), ^{
         UIWindow *window = AMKeyWindow();
