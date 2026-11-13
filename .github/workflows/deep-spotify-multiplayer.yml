@@ -24,7 +24,9 @@ jobs:
         run: python3 tools/analyze_ipa.py
       - name: Inspect Spotify and SpotifyShared symbols and strings
         run: python3 tools/deep_analyze_spotify.py
-      - name: Disassemble multiplayer playback methods\n        run: python3 tools/disassemble_multiplayer_methods.py\n      - name: Upload analysis only (never the IPA)
+      - name: Disassemble multiplayer playback methods
+        run: python3 tools/disassemble_multiplayer_methods.py
+      - name: Upload analysis only (never the IPA)
         uses: actions/upload-artifact@v4
         with:
           name: Spotify-MultiPlayer-Deep-Analysis
@@ -33,6 +35,9 @@ jobs:
             analysis-output/Spotify.nm.txt
             analysis-output/Spotify.swift-demangled.txt
             analysis-output/SpotifyShared.nm.txt
-            analysis-output/SpotifyShared.swift-demangled.txt\n            analysis-output/spotify-multiplayer-method-index.txt\n            analysis-output/spotify-multiplayer-method-disassembly.txt\n            analysis-output/spotify-multiplayer-methods-error.txt
+            analysis-output/SpotifyShared.swift-demangled.txt
+            analysis-output/spotify-multiplayer-method-index.txt
+            analysis-output/spotify-multiplayer-method-disassembly.txt
+            analysis-output/spotify-multiplayer-methods-error.txt
           if-no-files-found: warn
           retention-days: 7
