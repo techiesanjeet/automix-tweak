@@ -44,6 +44,22 @@ if not rows:
 def nearest_index(address):
     return min(range(len(rows)), key=lambda n: abs(rows[n][1] - address))
 
+# Use nm's function symbols to bound each method rather than accidentally
+# treating adjacent compiler-generated functions as part of the same method.
+nm_text = run(["nm", "-nm", str(binary)])
+symbols = []
+for line in nm_text.splitlines():
+    m = re.match(r"^([0-9a-fA-F]{8,16})\s+[tT]\s+(.+)$", line.strip())
+    if m:
+        symbols.append((int(m.group(1), 16), m.group(2)))
+symbols.sort()
+
+def method_end(address):
+    for symbol_address, _ in symbols:
+        if symbol_address > address:
+            return symbol_address
+    return address + 0x300
+
 # Exact service methods and their immediate BL targets.
 targets = set()
 report = ["Spotify transition service direct-call trace", ""]
@@ -52,14 +68,19 @@ for address, label in METHODS.items():
     row_idx, found, _ = rows[idx]
     if found != address:
         report.append(f"WARNING: {label}: requested 0x{address:x}, nearest 0x{found:x}")
-    start, stop = max(0, idx - 2), min(len(rows), idx + 90)
+    end_address = method_end(address)
+    stop = idx
+    while stop < len(rows) and rows[stop][1] < end_address:
+        stop += 1
+    stop = max(idx + 1, stop)
+    start = max(0, idx - 2)
     window = rows[start:stop]
     calls = set()
     for _, _, insn in window:
         m = re.search(r"\bbl\s+(?:0x)?([0-9a-fA-F]{8,16})", insn)
         if m:
             calls.add(int(m.group(1), 16))
-    report.append(f"===== {label} @ 0x{address:x} =====")
+    report.append(f"===== {label} @ 0x{address:x}; end 0x{end_address:x} =====")
     report.extend(lines[max(0, row_idx - 2):min(len(lines), rows[stop-1][0] + 1)])
     report.append("Direct BL targets: " + ", ".join(f"0x{x:x}" for x in sorted(calls)))
     report.append("")
