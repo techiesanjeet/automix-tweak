@@ -1,0 +1,57 @@
+name: Taurus AutoMix function disassembly
+
+on:
+  workflow_dispatch:
+    inputs:
+      ipa_url:
+        description: "Same Taurus IPA URL used for the first analysis"
+        required: true
+        type: string
+        default: "https://www.mediafire.com/file/f2m6phjgdhtpyen/Taurus-0.60.6.ipa/file?dkey=10sos8x35xg&r=957"
+
+permissions:
+  contents: read
+
+jobs:
+  disassemble:
+    runs-on: macos-latest
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@v4
+      - name: Download and extract IPA
+        env:
+          IPA_URL: ${{ inputs.ipa_url }}
+        run: python3 tools/analyze_ipa.py
+      - name: Disassemble AutoMix integration library
+        shell: bash
+        run: |
+          set -euo pipefail
+          APP="$(find ipa-work -type d -name '*.app' -print -quit)"
+          DYLIB="$APP/Frameworks/spotifyglass.dylib"
+          test -f "$DYLIB"
+          mkdir -p automix-disassembly
+          nm -nm "$DYLIB" > automix-disassembly/spotifyglass-nm.txt
+          otool -Iv "$DYLIB" > automix-disassembly/spotifyglass-imports.txt
+          strings -a "$DYLIB" > automix-disassembly/spotifyglass-strings.txt
+          otool -arch arm64 -tvV "$DYLIB" > automix-disassembly/spotifyglass-disassembly.txt
+          grep -n -E -A100 'SGAutoMix(SupportedVersion|Enabled|UsesBeatMatching|BlendSeconds|ContextAllowed|TrackAllowed|HasTransition|Configuration|PlayerAvailable|RestorePreferences|ApplyCurrentPlayback|PreviewTransition|PreferencesAvailable|PreferenceChanged|SettingsChanged|Status|LastTransition|MixWindow|TransitionDetails|CopyContext|CopyRequest|ContextMetadata|PlayerStateChanged)' automix-disassembly/spotifyglass-disassembly.txt > automix-disassembly/automix-function-windows.txt || true
+          {
+            echo "# Taurus spotifyglass AutoMix disassembly"
+            echo
+            echo "- Static analysis only; no app code executed."
+            echo "- The IPA itself is not uploaded."
+            echo "- Exported names are leads, not proof of safe public APIs."
+            echo
+            echo "## AutoMix symbols"
+            grep -E 'SGAutoMix|SGPlayerTransition|SGRCrossfade' automix-disassembly/spotifyglass-nm.txt || true
+            echo
+            echo "## AutoMix strings"
+            grep -iE 'automix|auto.?mix|crossfade|transition|multiplayer|audio.fade|beat.?match' automix-disassembly/spotifyglass-strings.txt || true
+          } > automix-disassembly/REPORT.md
+      - name: Upload focused disassembly (not the IPA)
+        uses: actions/upload-artifact@v4
+        with:
+          name: Taurus-AutoMix-Disassembly
+          path: automix-disassembly/
+          if-no-files-found: error
+          retention-days: 7
