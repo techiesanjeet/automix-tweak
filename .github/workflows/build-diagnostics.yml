@@ -1,0 +1,35 @@
+name: Build AutoMix diagnostics bridge
+on:
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  build:
+    runs-on: macos-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install dependencies
+        run: brew install ldid xz
+      - name: Install Theos
+        run: |
+          git clone --recursive https://github.com/theos/theos.git "$GITHUB_WORKSPACE/theos"
+          echo "THEOS=$GITHUB_WORKSPACE/theos" >> "$GITHUB_ENV"
+      - name: Install iOS SDKs
+        run: |
+          mkdir -p "$THEOS/sdks"
+          curl -fL https://github.com/theos/sdks/archive/master.zip -o sdks.zip
+          mkdir -p sdk-temp
+          ditto -x -k sdks.zip sdk-temp
+          find sdk-temp -type d -name "*.sdk" -prune -exec mv {} "$THEOS/sdks/" \;
+      - name: Build diagnostics dylib
+        run: |
+          make -f Makefile.diagnostics clean || true
+          make -f Makefile.diagnostics
+      - name: Upload diagnostics dylib
+        uses: actions/upload-artifact@v4
+        with:
+          name: AutoMixDiagnostics-dylib
+          path: .theos/obj/debug/AutoMixDiagnostics.dylib
+          if-no-files-found: error
+          retention-days: 7
