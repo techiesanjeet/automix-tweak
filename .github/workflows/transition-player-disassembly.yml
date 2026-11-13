@@ -1,0 +1,36 @@
+name: Spotify transition-player disassembly
+
+on:
+  workflow_dispatch:
+    inputs:
+      ipa_url:
+        description: "Direct IPA URL or MediaFire share URL"
+        required: true
+        type: string
+        default: "https://www.mediafire.com/file/f2m6phjgdhtpyen/Taurus-0.60.6.ipa/file?dkey=10sos8x35xg&r=957"
+
+permissions:
+  contents: read
+
+jobs:
+  disassemble:
+    runs-on: macos-latest
+    timeout-minutes: 90
+    steps:
+      - uses: actions/checkout@v4
+      - name: Download and unpack IPA
+        env:
+          IPA_URL: ${{ inputs.ipa_url }}
+        run: python3 tools/analyze_ipa.py
+      - name: Disassemble native transition-player wiring
+        run: python3 tools/disassemble_transition_player.py
+      - name: Upload analysis only (never the IPA)
+        uses: actions/upload-artifact@v4
+        with:
+          name: Spotify-Transition-Player-Disassembly
+          path: |
+            analysis-output/spotify-transition-objc-metadata.txt
+            analysis-output/spotify-transition-service-disassembly.txt
+            analysis-output/swift-demangler-location.txt
+          if-no-files-found: error
+          retention-days: 7
