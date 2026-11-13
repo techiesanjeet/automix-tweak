@@ -19,9 +19,10 @@ out = ROOT / "analysis-output"
 out.mkdir(exist_ok=True)
 
 TARGETS = re.compile(
-    r"MixingTransitionPlayerImpl|MixingTransitionPlayerServiceImpl|"
-    r"MixingPlayingTransitionContext|MultiPlayerImpl|InternalPlayerImpl|"
-    r"InternalPlayerFactoryImpl|InternalAudioCoordinator",
+    r"_TtC22MultiPlayer_PlayerImpl(?:24InternalAudioCoordinator|"
+    r"25InternalPlayerFactoryImpl|18InternalPlayerImpl|15MultiPlayerImpl)\b|"
+    r"_TtC35PlaylistMixing_TransitionPlayerImpl(?:26MixingTransitionPlayerImpl|"
+    r"33MixingTransitionPlayerServiceImpl)\b",
     re.I,
 )
 
@@ -61,8 +62,13 @@ candidate_imps = set()
 for start, stop, label in merged:
     block = lines[start:stop]
     joined = "\n".join(block)
-    for m in re.finditer(r"\bimp\s+(?:0x)?([0-9a-fA-F]{8,16})\b", joined):
-        candidate_imps.add(int(m.group(1), 16))
+    for m in re.finditer(
+        r"\bimp\s+(?:0x)?([0-9a-fA-F]{8,16})\s+\((?:0x)?([0-9a-fA-F]{8,16})\)",
+        joined
+    ):
+        # otool prints the raw chained-fixup value first and the resolved
+        # unslid virtual address in parentheses. Disassemble the latter.
+        candidate_imps.add(int(m.group(2), 16))
     report.append(f"===== Context near: {label} (metadata lines {start+1}-{stop}) =====")
     report.append(joined)
     report.append("")
