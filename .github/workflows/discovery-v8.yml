@@ -1,0 +1,47 @@
+name: AutoMix Discovery V8 (runtime class and selector map)
+on:
+  workflow_dispatch:
+  push:
+    branches:
+      - diagnostics/spotify-runtime-map-v8
+jobs:
+  build:
+    runs-on: macos-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+      - name: Install build dependencies
+        run: brew install ldid
+      - name: Install Theos
+        run: |
+          export THEOS="$GITHUB_WORKSPACE/theos"
+          git clone --recursive https://github.com/theos/theos.git "$THEOS"
+          echo "THEOS=$THEOS" >> "$GITHUB_ENV"
+      - name: Install iOS SDK
+        run: |
+          mkdir -p "$THEOS/sdks"
+          curl -fL https://github.com/theos/sdks/archive/master.zip -o sdks.zip
+          mkdir -p sdk-temp
+          ditto -x -k sdks.zip sdk-temp
+          find sdk-temp -type d -name "*.sdk" -prune -exec mv {} "$THEOS/sdks/" \;
+          rm -rf sdks.zip sdk-temp
+          test -n "$(find "$THEOS/sdks" -name '*.sdk' -print -quit)"
+      - name: Build V8 diagnostic dylib
+        run: |
+          make clean || true
+          make -f Makefile.discovery-v8
+      - name: Select and verify one arm64 dylib
+        run: |
+          mkdir -p artifact
+          find .theos/obj -type f -name 'AutoMixEngine.dylib' ! -path '*/.dSYM/*' -print
+          DYLIB="$(find .theos/obj -type f -name 'AutoMixEngine.dylib' ! -path '*/.dSYM/*' -print -quit)"
+          test -n "$DYLIB"
+          cp "$DYLIB" artifact/AutoMixEngine.dylib
+          file artifact/AutoMixEngine.dylib
+          xcrun lipo -info artifact/AutoMixEngine.dylib
+      - name: Upload single V8 diagnostic dylib
+        uses: actions/upload-artifact@v4
+        with:
+          name: AutoMixDiscoveryV8-diagnostics-only
+          path: artifact/AutoMixEngine.dylib
+          if-no-files-found: error
