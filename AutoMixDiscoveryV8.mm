@@ -18,13 +18,6 @@ static NSArray<NSString *> *V8FocusTerms(void) {
       @"internalplayer",@"audiocoordinator",@"audiotap",@"playbackrequest",
       @"unmutedhandle",@"mutecontroller",@"mixingevaluator",@"mixingstate"];
 }
-static NSArray<NSString *> *V8MethodTerms(void) {
-    return @[@"play",@"pause",@"stop",@"seek",@"transition",@"mix",@"fade",
-      @"volume",@"mute",@"unmute",@"audio",@"player",@"pool",@"group",
-      @"activate",@"deactivate",@"prepare",@"start",@"end",@"context",
-      @"subject",@"observe",@"subscribe",@"output",@"render",@"route",
-      @"session",@"current",@"next",@"previous",@"track",@"state"];
-}
 static BOOL V8IsSpotifyImage(const char *path) {
     NSString *p=V8S(path).lowercaseString;
     return [p containsString:@"spotify.app/"] || [p containsString:@"/spotify/"];
