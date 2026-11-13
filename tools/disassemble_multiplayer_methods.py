@@ -91,7 +91,7 @@ if not assembly.strip():
 lines = assembly.splitlines()
 rows = []
 for i, line in enumerate(lines):
-    m = re.match(r"^\\s*([0-9a-fA-F]{8,16})\\s+(.+)$", line)
+    m = re.match(r"^\s*([0-9a-fA-F]{8,16})\s+(.+)$", line)
     if m:
         rows.append((i, int(m.group(1), 16)))
 
