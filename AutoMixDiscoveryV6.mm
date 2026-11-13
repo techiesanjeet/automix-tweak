@@ -190,10 +190,12 @@ __attribute__((constructor)) static void AutoMixDiscoveryV6(void) {
         button.layer.shadowOpacity=0.25;
         button.layer.shadowRadius=5;
         button.layer.shadowOffset=CGSizeMake(0,2);
-        [button addTarget:[NSBlockOperation blockOperationWithBlock:^{ AMRunScan(); }] action:@selector(main) forControlEvents:UIControlEventTouchUpInside];
-        // Retain a direct target to keep the control alive.
-        id target=[button.allTargets anyObject];
-        objc_setAssociatedObject(button, @selector(AMRunScan), target, OBJC_ASSOCIATION_RETAIN_NONATOMIC);
+        if (@available(iOS 14.0, *)) {
+          UIAction *scanAction=[UIAction actionWithHandler:^(__unused UIAction *action) { AMRunScan(); }];
+          [button addAction:scanAction forControlEvents:UIControlEventTouchUpInside];
+        } else {
+          [button addTarget:[NSBlockOperation blockOperationWithBlock:^{ AMRunScan(); }] action:@selector(main) forControlEvents:UIControlEventTouchUpInside];
+        }
         [window addSubview:button];
         NSLog(@"[AutoMixDiscoveryV6] SCAN MIX control added");
       });
