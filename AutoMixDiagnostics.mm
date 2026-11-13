@@ -117,6 +117,26 @@ static void AMCollectSnapshot(NSString *reason) {
         AMLog(@"Taurus SGAutoMixLastTransition()=%@", value ?: @"<nil>");
     }
 
+    // These two no-argument getters are called directly by Taurus's own
+    // AutoMix implementation before it evaluates the current playback.
+    // They are read-only and let us distinguish missing player/state wiring.
+    id (*playbackPlayerGetter)(void) = (id (*)(void))dlsym(RTLD_DEFAULT, "SGPlaybackPlayer");
+    id (*playerStateGetter)(void) = (id (*)(void))dlsym(RTLD_DEFAULT, "SGPlayerState");
+    if (playbackPlayerGetter) {
+        id player = playbackPlayerGetter();
+        AMLog(@"Taurus SGPlaybackPlayer()=%@ class=%@",
+              player ?: @"<nil>", player ? NSStringFromClass([player class]) : @"<none>");
+    } else {
+        AMLog(@"Taurus SGPlaybackPlayer: symbol NOT FOUND");
+    }
+    if (playerStateGetter) {
+        id state = playerStateGetter();
+        AMLog(@"Taurus SGPlayerState()=%@ class=%@",
+              state ?: @"<nil>", state ? NSStringFromClass([state class]) : @"<none>");
+    } else {
+        AMLog(@"Taurus SGPlayerState: symbol NOT FOUND");
+    }
+
     NSArray *keys = @[
         @"spotifyglass.automix", @"spotifyglass.automix.savedPreferences",
         @"spotifyglass.automix.style", @"spotifyglass.automix.length",
