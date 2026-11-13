@@ -31,6 +31,7 @@ jobs:
           path: |
             analysis-output/spotify-transition-objc-metadata.txt
             analysis-output/spotify-transition-service-disassembly.txt
+            analysis-output/spotify-transition-service-callees.txt
             analysis-output/spotify-transition-swift-symbols.txt
             analysis-output/swift-demangler-location.txt
           if-no-files-found: error

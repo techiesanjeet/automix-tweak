@@ -106,6 +106,50 @@ result = "\n\n".join(sections)
 (out / "spotify-transition-service-disassembly.txt").write_text(
     result[:30_000], encoding="utf-8")
 
+# Follow direct branch-and-link calls from the three service entry points.
+# This produces focused callee neighborhoods without dumping the entire binary.
+callee_targets = {}
+for label, raw_address in targets.items():
+    target = int(raw_address, 16)
+    candidates = [(abs(addr - target), row_idx, addr)
+                  for row_idx, addr, _ in address_rows]
+    if not candidates:
+        continue
+    distance, row_idx, found_addr = min(candidates)
+    if distance > 16:
+        continue
+    # Inspect a modest span around the method's entry; direct BL instructions
+    # are candidates only, not asserted semantic matches.
+    for line_idx in range(max(0, row_idx - 2),
+                          min(len(asm_lines), row_idx + 50)):
+        line = asm_lines[line_idx]
+        if re.search(r"\\bbl\\s", line):
+            call = re.search(r"\\bbl\\s+(?:0x)?([0-9a-fA-F]{8,16})", line)
+            if call:
+                address = int(call.group(1), 16)
+                callee_targets.setdefault(address, []).append(
+                    f"{label} callsite: {line.strip()}")
+
+callee_sections = []
+for target, origins in sorted(callee_targets.items()):
+    candidates = [(abs(addr - target), row_idx, addr)
+                  for row_idx, addr, _ in address_rows]
+    if not candidates:
+        continue
+    distance, row_idx, found_addr = min(candidates)
+    if distance > 16:
+        continue
+    start, stop = max(0, row_idx - 12), min(len(asm_lines), row_idx + 21)
+    callee_sections.append(
+        f"===== callee requested=0x{target:x} matched=0x{found_addr:x} "
+        f"distance={distance} =====\\n"
+        + "\\n".join(origins) + "\\n"
+        + "\\n".join(asm_lines[start:stop]))
+(out / "spotify-transition-service-callees.txt").write_text(
+    "\\n\\n".join(callee_sections)[:100_000], encoding="utf-8")
+print(f"[transition] extracted {len(callee_sections)} direct-call callee neighborhoods",
+      flush=True)
+
 symbol_names = []
 for line in nm.splitlines():
     parts = line.split()
