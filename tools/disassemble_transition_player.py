@@ -39,9 +39,9 @@ for i, line in enumerate(lines):
         lo, hi = max(0, i - 8), min(len(lines), i + 32)
         if (lo, hi) not in seen:
             seen.add((lo, hi))
-            windows.append("\\n".join(lines[lo:hi]))
+            windows.append("\n".join(lines[lo:hi]))
 (out / "spotify-transition-objc-metadata.txt").write_text(
-    "\\n\\n===== MATCH =====\\n\\n".join(windows)[:500_000],
+    "\n\n===== MATCH =====\n\n".join(windows)[:500_000],
     encoding="utf-8")
 
 nm = run(["nm", "-a", str(binary)], timeout=600)
@@ -70,7 +70,7 @@ if not assembly.strip():
 asm_lines = assembly.splitlines()
 address_rows = []
 for idx, line in enumerate(asm_lines):
-    match = re.match(r"^\\s*([0-9a-fA-F]{8,16})\\s+(.+)$", line)
+    match = re.match(r"^\s*([0-9a-fA-F]{8,16})\s+(.+)$", line)
     if match:
         address_rows.append((idx, int(match.group(1), 16), line))
 
@@ -82,27 +82,27 @@ for label, raw_address in targets.items():
     candidates = [(abs(addr - target), row_idx, addr)
                   for row_idx, addr, _ in address_rows]
     if not candidates:
-        sections.append(f"===== {label} ({raw_address}) =====\\n"
+        sections.append(f"===== {label} ({raw_address}) =====\n"
                         "ERROR: no address-bearing instruction rows parsed.")
         continue
     distance, row_idx, found_addr = min(candidates)
     if distance > 16:
         sections.append(
-            f"===== {label} ({raw_address}) =====\\n"
+            f"===== {label} ({raw_address}) =====\n"
             f"ERROR: nearest otool instruction is 0x{found_addr:x} "
-            f"(distance {distance} bytes).\\n"
+            f"(distance {distance} bytes).\n"
             f"Nearby text context: {asm_lines[max(0, row_idx-3):row_idx+4]}"
         )
         continue
     start, stop = max(0, row_idx - 24), min(len(asm_lines), row_idx + 25)
     sections.append(
         f"===== {label} requested=0x{target:x} matched=0x{found_addr:x} "
-        f"distance={distance} =====\\n" + "\\n".join(asm_lines[start:stop])
+        f"distance={distance} =====\n" + "\n".join(asm_lines[start:stop])
     )
     print(f"[transition] {label}: matched 0x{found_addr:x} "
           f"(distance {distance} bytes)", flush=True)
 
-result = "\\n\\n".join(sections)
+result = "\n\n".join(sections)
 (out / "spotify-transition-service-disassembly.txt").write_text(
     result[:30_000], encoding="utf-8")
 
@@ -116,7 +116,7 @@ print(f"[transition] attempting Swift demangle for {len(symbol_names)} symbols",
 try:
     demangler = run(["xcrun", "--find", "swift-demangle"], timeout=30).strip()
     proc = subprocess.run(
-        [demangler], input="\\n".join(symbol_names), stdout=subprocess.PIPE,
+        [demangler], input="\n".join(symbol_names), stdout=subprocess.PIPE,
         stderr=subprocess.STDOUT, text=True, errors="replace", timeout=600
     )
     wanted = re.compile(
@@ -124,13 +124,13 @@ try:
         r"MixingCoreAutomix|AutomixTransition", re.I)
     selected = [line for line in proc.stdout.splitlines() if wanted.search(line)]
     (out / "spotify-transition-swift-symbols.txt").write_text(
-        "\\n".join(selected) + "\\n", encoding="utf-8")
+        "\n".join(selected) + "\n", encoding="utf-8")
     (out / "swift-demangler-location.txt").write_text(
-        demangler + "\\n", encoding="utf-8")
+        demangler + "\n", encoding="utf-8")
     print(f"[transition] relevant demangled symbol lines: {len(selected)}",
           flush=True)
 except Exception as e:
     (out / "spotify-transition-swift-symbols.txt").write_text(
-        f"Swift demangling failed: {e}\\n", encoding="utf-8")
+        f"Swift demangling failed: {e}\n", encoding="utf-8")
 
 print("Wrote focused otool instruction neighborhoods and metadata.", flush=True)
