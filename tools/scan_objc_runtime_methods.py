@@ -19,9 +19,10 @@ out = ROOT / "analysis-output"
 out.mkdir(exist_ok=True)
 
 TARGETS = re.compile(
-    r"MixingTransitionPlayerImpl|MixingTransitionPlayerServiceImpl|"
-    r"MixingPlayingTransitionContext|MultiPlayerImpl|InternalPlayerImpl|"
-    r"InternalPlayerFactoryImpl|InternalAudioCoordinator",
+    r"_TtC22MultiPlayer_PlayerImpl(?:24InternalAudioCoordinator|"
+    r"25InternalPlayerFactoryImpl|18InternalPlayerImpl|15MultiPlayerImpl)\\b|"
+    r"_TtC35PlaylistMixing_TransitionPlayerImpl(?:26MixingTransitionPlayerImpl|"
+    r"33MixingTransitionPlayerServiceImpl)\\b",
     re.I,
 )
 
