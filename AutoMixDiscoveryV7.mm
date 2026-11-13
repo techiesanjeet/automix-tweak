@@ -5,6 +5,7 @@
 #import <mach-o/loader.h>
 #import <mach-o/nlist.h>
 #import <dispatch/dispatch.h>
+#import <string.h>
 
 static NSString *V7S(const char *s) { return s ? [NSString stringWithUTF8String:s] : @""; }
 static BOOL V7Has(NSString *s, NSArray<NSString *> *terms) {
