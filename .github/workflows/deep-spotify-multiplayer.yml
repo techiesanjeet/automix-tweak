@@ -26,6 +26,8 @@ jobs:
         run: python3 tools/deep_analyze_spotify.py
       - name: Disassemble multiplayer playback methods
         run: python3 tools/disassemble_multiplayer_methods.py
+      - name: Inspect Objective-C runtime method lists and IMPs
+        run: python3 tools/scan_objc_runtime_methods.py
       - name: Upload analysis only (never the IPA)
         uses: actions/upload-artifact@v4
         with:
@@ -39,5 +41,8 @@ jobs:
             analysis-output/spotify-multiplayer-method-index.txt
             analysis-output/spotify-multiplayer-method-disassembly.txt
             analysis-output/spotify-multiplayer-methods-error.txt
+            analysis-output/spotify-objc-runtime-full.txt
+            analysis-output/spotify-objc-runtime-target-contexts.txt
+            analysis-output/spotify-objc-imp-disassembly.txt
           if-no-files-found: warn
           retention-days: 7
