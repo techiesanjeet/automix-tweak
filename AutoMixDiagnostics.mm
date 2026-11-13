@@ -44,8 +44,6 @@ static void AMShowLog(void) {
         while (root.presentedViewController) root = root.presentedViewController;
         if (!root) return;
 
-        NSString *snapshot;
-        @synchronized (gLog) { snapshot = [gLog copy]; }
         UIAlertController *alert = [UIAlertController alertControllerWithTitle:@"AutoMix diagnostics"
             message:@"Copy this report and paste it into the chat. No playback controls are changed."
             preferredStyle:UIAlertControllerStyleAlert];
