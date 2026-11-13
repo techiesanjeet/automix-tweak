@@ -1,0 +1,37 @@
+name: Taurus IPA reverse engineering
+
+on:
+  workflow_dispatch:
+    inputs:
+      ipa_url:
+        description: "Direct IPA URL or a MediaFire share URL"
+        required: true
+        type: string
+        default: "https://www.mediafire.com/file/f2m6phjgdhtpyen/Taurus-0.60.6.ipa/file?dkey=10sos8x35xg&r=957"
+
+permissions:
+  contents: read
+
+jobs:
+  analyze:
+    runs-on: macos-14
+    timeout-minutes: 45
+    steps:
+      - name: Checkout analysis scripts
+        uses: actions/checkout@v4
+      - name: Download and analyze IPA
+        env:
+          IPA_URL: ${{ inputs.ipa_url }}
+        run: python3 tools/analyze_ipa.py
+      - name: Upload analysis only (never the IPA)
+        uses: actions/upload-artifact@v4
+        with:
+          name: Taurus-IPA-Reverse-Engineering
+          path: |
+            analysis-output/REPORT.md
+            analysis-output/binary-inventory.tsv
+            analysis-output/keyword-hits.txt
+            analysis-output/automix-symbols.txt
+            analysis-output/swift-symbols-demangled.txt
+          if-no-files-found: error
+          retention-days: 7
