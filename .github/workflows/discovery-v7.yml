@@ -1,0 +1,44 @@
+name: AutoMix Discovery V7 (Swift symbols and Mach-O)
+on:
+  workflow_dispatch:
+  push:
+    branches:
+      - diagnostics/spotify-swift-binary-v7
+jobs:
+  build:
+    runs-on: macos-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+      - name: Install dependencies
+        run: brew install ldid xz
+      - name: Install Theos
+        run: |
+          export THEOS="$GITHUB_WORKSPACE/theos"
+          git clone --recursive https://github.com/theos/theos.git "$THEOS"
+          echo "THEOS=$THEOS" >> "$GITHUB_ENV"
+      - name: Install iOS SDKs
+        run: |
+          mkdir -p "$THEOS/sdks"
+          curl -fL https://github.com/theos/sdks/archive/master.zip -o sdks.zip
+          mkdir -p sdk-temp
+          ditto -x -k sdks.zip sdk-temp
+          find sdk-temp -type d -name "*.sdk" -prune -exec mv {} "$THEOS/sdks/" \;
+          rm -rf sdks.zip sdk-temp
+          test -n "$(find "$THEOS/sdks" -name '*.sdk' -print -quit)"
+      - name: Build V7 diagnostic dylib
+        run: |
+          make clean || true
+          make -f Makefile.discovery-v7
+      - name: Verify arm64 dylib
+        run: |
+          DYLIB="$(find .theos/obj -name '*.dylib' -print -quit)"
+          test -n "$DYLIB"
+          file "$DYLIB"
+          xcrun lipo -info "$DYLIB" || true
+      - name: Upload V7 diagnostic dylib
+        uses: actions/upload-artifact@v4
+        with:
+          name: AutoMixDiscoveryV7-diagnostics-only
+          path: .theos/obj/**/*.dylib
+          if-no-files-found: error
