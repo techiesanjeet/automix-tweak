@@ -2,6 +2,7 @@
 #import <Foundation/Foundation.h>
 #import <AVFoundation/AVFoundation.h>
 #import <dlfcn.h>
+#import <stdarg.h>
 #import <objc/runtime.h>
 
 static NSMutableString *gLog;
