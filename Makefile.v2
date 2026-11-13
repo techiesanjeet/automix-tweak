@@ -1,0 +1,11 @@
+TARGET := iphone:clang:latest:14.0
+ARCHS = arm64
+
+LIBRARY_NAME = AutoMixEngineV2
+AutoMixEngineV2_FILES = AutoMixV2/AutoMixEngineV2.mm fishhook.c
+AutoMixEngineV2_FRAMEWORKS = Foundation AudioToolbox CoreAudio
+AutoMixEngineV2_CFLAGS = -fobjc-arc
+AutoMixEngineV2_CXXFLAGS = -std=c++17
+
+include $(THEOS)/makefiles/common.mk
+include $(THEOS)/makefiles/library.mk
