@@ -1,0 +1,40 @@
+name: Build Standalone AutoMix V2
+on:
+  workflow_dispatch:
+  push:
+    branches: [main, master, standalone-automix-v2]
+    paths:
+      - "AutoMixV2/**"
+      - "Makefile.v2"
+      - ".github/workflows/build-automix-v2.yml"
+      - "fishhook.*"
+
+jobs:
+  build:
+    runs-on: macos-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install build dependencies
+        run: brew install ldid xz
+      - name: Install Theos
+        run: |
+          git clone --recursive https://github.com/theos/theos.git "$GITHUB_WORKSPACE/theos"
+          echo "THEOS=$GITHUB_WORKSPACE/theos" >> "$GITHUB_ENV"
+      - name: Install iOS SDKs
+        run: |
+          mkdir -p "$THEOS/sdks" sdk-temp
+          curl -fL https://github.com/theos/sdks/archive/master.zip -o sdks.zip
+          ditto -x -k sdks.zip sdk-temp
+          find sdk-temp -type d -name "*.sdk" -prune -exec mv {} "$THEOS/sdks/" \;
+          rm -rf sdk-temp sdks.zip
+      - name: Build standalone dylib
+        run: |
+          make -f Makefile.v2 clean || true
+          make -f Makefile.v2
+          find .theos obj -name "AutoMixEngineV2.dylib" -print 2>/dev/null
+      - name: Upload standalone dylib
+        uses: actions/upload-artifact@v4
+        with:
+          name: AutoMixEngineV2-dylib
+          path: .theos/obj/debug/AutoMixEngineV2.dylib
+          if-no-files-found: error
