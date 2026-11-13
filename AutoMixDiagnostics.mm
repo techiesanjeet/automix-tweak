@@ -48,7 +48,8 @@ static void AMShowLog(void) {
             message:@"Copy this report and paste it into the chat. No playback controls are changed."
             preferredStyle:UIAlertControllerStyleAlert];
         [alert addAction:[UIAlertAction actionWithTitle:@"Copy report" style:UIAlertActionStyleDefault handler:^(__unused UIAlertAction *a) {
-            UIPasteboard.generalPasteboard.string = snapshot ?: @"No diagnostics collected.";
+            AMCollectSnapshot(@"manual LOG-button refresh");
+            @synchronized (gLog) { UIPasteboard.generalPasteboard.string = [gLog copy] ?: @"No diagnostics collected."; }
         }]];
         [alert addAction:[UIAlertAction actionWithTitle:@"Close" style:UIAlertActionStyleCancel handler:nil]];
         [root presentViewController:alert animated:YES completion:nil];
@@ -98,6 +99,23 @@ static void AMCollectSnapshot(NSString *reason) {
     ];
     for (NSString *symbol in symbols)
         AMLog(@"symbol %@: %@", symbol, AMPointer(symbol.UTF8String));
+
+    // These are zero-argument getters confirmed by the Taurus ARM64 disassembly.
+    // Read-only: do not invoke ApplyCurrentPlayback or PlayerAvailable here.
+    BOOL (*enabledGetter)(void) = (BOOL (*)(void))dlsym(RTLD_DEFAULT, "SGAutoMixEnabled");
+    NSInteger (*blendGetter)(void) = (NSInteger (*)(void))dlsym(RTLD_DEFAULT, "SGAutoMixBlendSeconds");
+    id (*statusGetter)(void) = (id (*)(void))dlsym(RTLD_DEFAULT, "SGAutoMixStatus");
+    id (*lastTransitionGetter)(void) = (id (*)(void))dlsym(RTLD_DEFAULT, "SGAutoMixLastTransition");
+    if (enabledGetter) AMLog(@"Taurus SGAutoMixEnabled()=%d", enabledGetter());
+    if (blendGetter) AMLog(@"Taurus SGAutoMixBlendSeconds()=%ld", (long)blendGetter());
+    if (statusGetter) {
+        id value = statusGetter();
+        AMLog(@"Taurus SGAutoMixStatus()=%@", value ?: @"<nil>");
+    }
+    if (lastTransitionGetter) {
+        id value = lastTransitionGetter();
+        AMLog(@"Taurus SGAutoMixLastTransition()=%@", value ?: @"<nil>");
+    }
 
     NSArray *keys = @[
         @"spotifyglass.automix", @"spotifyglass.automix.savedPreferences",
