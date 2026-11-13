@@ -67,10 +67,6 @@ static void AMInstallButton(void) {
     [button setTitle:@"LOG" forState:UIControlStateNormal];
     [button setTitleColor:UIColor.systemTealColor forState:UIControlStateNormal];
     button.titleLabel.font = [UIFont boldSystemFontOfSize:13];
-    [button addTarget:[NSBlockOperation blockOperationWithBlock:^{ AMShowLog(); }]
-               action:@selector(main) forControlEvents:UIControlEventTouchUpInside];
-    // Use a retained target object so UIKit can deliver the tap.
-    [button removeTarget:nil action:NULL forControlEvents:UIControlEventAllEvents];
     [button addTarget:window.rootViewController action:@selector(am_showAutoMixDiagnosticLog)
        forControlEvents:UIControlEventTouchUpInside];
     [window addSubview:button];
