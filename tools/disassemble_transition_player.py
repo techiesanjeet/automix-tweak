@@ -33,12 +33,18 @@ terms = [
     "SPTServiceSessionDependencyGroupImpl",
 ]
 windows = []
+seen = set()
 for i, line in enumerate(lines):
+    # Keep small, unique windows around matching metadata labels.
     if any(term in line for term in terms):
-        lo, hi = max(0, i - 18), min(len(lines), i + 90)
-        windows.append("\n".join(lines[lo:hi]))
+        lo, hi = max(0, i - 8), min(len(lines), i + 32)
+        key = (lo, hi)
+        if key not in seen:
+            seen.add(key)
+            windows.append("\n".join(lines[lo:hi]))
+focused_metadata = "\n\n===== MATCH =====\n\n".join(windows)
 (out / "spotify-transition-objc-metadata.txt").write_text(
-    "\n\n===== MATCH =====\n\n".join(windows), encoding="utf-8")
+    focused_metadata[:500_000], encoding="utf-8")
 
 # Addresses are taken from the IMP entries in the Objective-C metadata and
 # independently cross-checked against nm output for this Spotify build.
@@ -69,7 +75,7 @@ for label, address in targets.items():
         result = run(cmd, timeout=180)
     except Exception as e:
         result = f"LLVM DISASSEMBLY ERROR: {e}"
-    dis.append(f"===== {label} ({address}) =====\n{result}")
+    # Cap output in case this objdump version ignores the address range.\n    result = result[:30_000]\n    dis.append(f"===== {label} ({address}) =====\n{result}")
 (out / "spotify-transition-service-disassembly.txt").write_text(
     "\n\n".join(dis), encoding="utf-8")
 
