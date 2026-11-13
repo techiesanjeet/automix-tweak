@@ -44,12 +44,36 @@ ipa = WORK / "input.ipa"
 print("Downloading IPA (URL is not printed)...", flush=True)
 fetch(URL, ipa)
 print("Downloaded %s bytes" % format(ipa.stat().st_size, ","), flush=True)
+extract_root = WORK / "extracted"
+extract_root.mkdir(exist_ok=True)
 with zipfile.ZipFile(ipa) as z:
-    z.extractall(WORK / "Payload")
-app_dirs = list((WORK / "Payload").glob("*.app"))
+    names = z.namelist()
+    print("Archive entries: %s" % len(names), flush=True)
+    z.extractall(extract_root)
+
+# Some download hosts wrap the actual IPA inside another ZIP, and some
+# repackaging tools add a directory above Payload. Search recursively.
+app_dirs = list(extract_root.rglob("*.app"))
 if not app_dirs:
-    raise RuntimeError("No .app bundle found in IPA")
+    nested_archives = list(extract_root.rglob("*.ipa")) + list(extract_root.rglob("*.zip"))
+    for nested in nested_archives:
+        try:
+            nested_root = WORK / ("nested-" + nested.stem)
+            nested_root.mkdir(exist_ok=True)
+            with zipfile.ZipFile(nested) as z:
+                z.extractall(nested_root)
+            app_dirs.extend(nested_root.rglob("*.app"))
+            if app_dirs:
+                print("Found app inside nested archive: %s" % nested.name, flush=True)
+                break
+        except (zipfile.BadZipFile, OSError) as e:
+            print("Skipping nested archive %s: %s" % (nested.name, e), flush=True)
+
+if not app_dirs:
+    sample = "\\n".join(names[:40])
+    raise RuntimeError("No .app bundle found after recursive extraction. First archive entries:\\n" + sample)
 app = app_dirs[0]
+print("Selected app bundle: %s" % app, flush=True)
 
 def run(args, timeout=90):
     try:
