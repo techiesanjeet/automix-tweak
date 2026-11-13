@@ -123,8 +123,8 @@ for label, raw_address in targets.items():
     for line_idx in range(max(0, row_idx - 2),
                           min(len(asm_lines), row_idx + 50)):
         line = asm_lines[line_idx]
-        if re.search(r"\\bbl\\s", line):
-            call = re.search(r"\\bbl\\s+(?:0x)?([0-9a-fA-F]{8,16})", line)
+        if re.search(r"\bbl\s", line):
+            call = re.search(r"\bbl\s+(?:0x)?([0-9a-fA-F]{8,16})", line)
             if call:
                 address = int(call.group(1), 16)
                 callee_targets.setdefault(address, []).append(
