@@ -9,7 +9,11 @@
 // actual outgoing and incoming AudioUnits before starting a transition.
 namespace AMV2 {
 enum DeckRole : int { Outgoing = 0, Incoming = 1 };
-static std::atomic<AudioUnit> decks[2] = { nullptr, nullptr };
+static std::atomic<AudioUnit> outgoingDeck{nullptr};
+static std::atomic<AudioUnit> incomingDeck{nullptr};
+static std::atomic<AudioUnit> &deckFor(int role) {
+    return role == Incoming ? incomingDeck : outgoingDeck;
+}
 static std::atomic<bool> enabled{true};
 static std::atomic<int> phase{0}; // 0 idle, 1 mixing, 2 completed
 static std::atomic<uint64_t> elapsedFrames{0};
@@ -36,7 +40,7 @@ static void applyGain(AudioBufferList *list, UInt32 frames, float gain) {
         if (!buffer.mData) continue;
         const UInt32 channels = buffer.mNumberChannels ? buffer.mNumberChannels : 1;
         const UInt32 available = buffer.mDataByteSize / (sizeof(float) * channels);
-        const UInt32 count = std::min(frames, available);
+        const UInt32 count = (frames < available) ? frames : available;
         float *samples = static_cast<float *>(buffer.mData);
         for (UInt32 f = 0; f < count; ++f)
             for (UInt32 c = 0; c < channels; ++c)
@@ -54,8 +58,8 @@ static OSStatus hookedRender(AudioUnit unit, AudioUnitRenderActionFlags *flags,
     const int currentPhase = phase.load(std::memory_order_acquire);
     if (currentPhase == 0) return result;
 
-    const bool outgoing = decks[Outgoing].load(std::memory_order_relaxed) == unit;
-    const bool incoming = decks[Incoming].load(std::memory_order_relaxed) == unit;
+    const bool outgoing = outgoingDeck.load(std::memory_order_relaxed) == unit;
+    const bool incoming = incomingDeck.load(std::memory_order_relaxed) == unit;
     if (!outgoing && !incoming) return result;
     if (!isFloat32(unit, bus)) return result;
 
@@ -85,7 +89,7 @@ static OSStatus hookedRender(AudioUnit unit, AudioUnitRenderActionFlags *flags,
 extern "C" __attribute__((visibility("default")))
 bool AMV2RegisterDeck(AudioUnit unit, int role) {
     if (!unit || (role != AMV2::Outgoing && role != AMV2::Incoming)) return false;
-    AMV2::decks[role].store(unit, std::memory_order_release);
+    AMV2::deckFor(role).store(unit, std::memory_order_release);
     AudioStreamBasicDescription asbd{};
     UInt32 size = sizeof(asbd);
     if (AudioUnitGetProperty(unit, kAudioUnitProperty_StreamFormat,
@@ -97,7 +101,7 @@ bool AMV2RegisterDeck(AudioUnit unit, int role) {
 extern "C" __attribute__((visibility("default")))
 bool AMV2StartTransition(float seconds) {
     if (!AMV2::enabled.load() || !std::isfinite(seconds) || seconds < 0.25f ||
-        !AMV2::decks[AMV2::Outgoing].load() || !AMV2::decks[AMV2::Incoming].load())
+        !AMV2::outgoingDeck.load() || !AMV2::incomingDeck.load())
         return false;
     const uint64_t rate = AMV2::sampleRate.load();
     AMV2::elapsedFrames.store(0, std::memory_order_release);
