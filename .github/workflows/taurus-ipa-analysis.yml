@@ -14,7 +14,7 @@ permissions:
 
 jobs:
   analyze:
-    runs-on: macos-14
+    runs-on: macos-latest
     timeout-minutes: 45
     steps:
       - name: Checkout analysis scripts
