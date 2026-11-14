@@ -67,10 +67,11 @@ public class DumpPlayerAnalysis extends GhidraScript {
                         + ref.getReferenceType() + " function="
                         + (function == null ? "<none>" : function.getName()
                             + " @ " + function.getEntryPoint()));
-                    if (function != null && candidates.size() < 100) {
+                    if (function != null && candidates.size() < 25) {
                         candidates.put(function.getEntryPoint().toString(), function);
                     }
                 }
+                out.flush();
             }
 
             out.println();
@@ -82,12 +83,12 @@ public class DumpPlayerAnalysis extends GhidraScript {
             try {
                 int emitted = 0;
                 for (Function function : candidates.values()) {
-                    if (monitor.isCancelled() || emitted >= 100) break;
+                    if (monitor.isCancelled() || emitted >= 25) break;
                     out.println("\n===== FUNCTION " + function.getName() + " @ "
                         + function.getEntryPoint() + " =====");
                     out.println("signature: " + function.getSignature());
                     DecompileResults result = decompiler.decompileFunction(
-                        function, 15, monitor);
+                        function, 5, monitor);
                     if (result != null && result.decompileCompleted()
                             && result.getDecompiledFunction() != null) {
                         out.println(result.getDecompiledFunction().getC());
@@ -95,6 +96,7 @@ public class DumpPlayerAnalysis extends GhidraScript {
                         out.println("DECOMPILATION FAILED: "
                             + (result == null ? "no result" : result.getErrorMessage()));
                     }
+                    out.flush();
                     emitted++;
                 }
             } finally {

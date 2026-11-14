@@ -20,7 +20,7 @@ permissions:
 jobs:
   analyze:
     runs-on: ubuntu-24.04
-    timeout-minutes: 90
+    timeout-minutes: 45
     steps:
       - uses: actions/checkout@v4
       - name: Install Ghidra Linux runtime libraries
@@ -72,10 +72,11 @@ jobs:
           test -s analysis-output/ghidra-player-xrefs.txt
       - name: Upload focused static-analysis output only
         uses: actions/upload-artifact@v4
+        if: always()
         with:
           name: Spotify-Ghidra-Player-Path
           path: |
             analysis-output/ghidra-player-xrefs.txt
             analysis-output/REPORT.md
-          if-no-files-found: error
+          if-no-files-found: warn
           retention-days: 14
