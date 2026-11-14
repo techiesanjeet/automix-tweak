@@ -138,7 +138,7 @@ cmdpos = 32
 for _ in range(ncmds):
     cmd, cmdsize = struct.unpack_from("<II", image, cmdpos)
     if cmd == 0x2C:  # LC_ENCRYPTION_INFO_64
-        _c, _sz, _cryptoff, _cryptsize, cryptid = struct.unpack_from("<IIQQI", image, cmdpos)
+        _c, _sz, _cryptoff, _cryptsize, cryptid, _pad = struct.unpack_from("<IIIIII", image, cmdpos)
         cryptid = str(cryptid)
     cmdpos += cmdsize
 
@@ -156,4 +156,6 @@ with out.open("w", encoding="utf-8") as f:
     if not hits:
         f.write("No exact ADR/ADRP+ADD references were found. This is inconclusive: Swift may use relative metadata tables, indirect references, or encrypted code.\n")
 print(f"Wrote {out}; strings={len(targets)}, code references={len(hits)}, cryptid={cryptid}", flush=True)
+print("----- bounded scan report -----", flush=True)
+print(out.read_text(encoding="utf-8")[-16000:], flush=True)
 
