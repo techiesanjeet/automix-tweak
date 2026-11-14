@@ -274,6 +274,16 @@ text_ranges = [(base, base + size) for _sg, sect, base, size, _off, _fl in secti
 def is_text_address(addr):
     return any(start <= addr < end for start, end in text_ranges)
 
+def resolve_indirectable_relative(field_addr, rel):
+    indirect = bool(rel & 1)
+    target = field_addr + (rel & ~1 if indirect else rel)
+    if indirect:
+        target_off = fileoff_for_vmaddr(target)
+        if target_off is None or target_off + 8 > len(image):
+            return 0
+        target = struct.unpack_from("<Q", image, target_off)[0]
+    return target
+
 target_names = {"MultiPlayerImpl", "MultiPlayerSessionImpl", "InternalPlayerFactoryImpl",
                 "InternalPlayerImpl", "InternalAudioCoordinator", "MixingTransitionPlayerImpl"}
 target_types = {addr: name for addr, _flags, name, _fd in type_descriptors if name in target_names}
@@ -300,7 +310,9 @@ for _seg, sect, base, size, off, _fl in sections:
         class_name = target_types.get(type_addr)
         if not class_name:
             continue
-        protocol_addr = conformance_addr + protocol_rel
+        protocol_addr = resolve_indirectable_relative(conformance_addr, protocol_rel)
+        if not protocol_addr:
+            continue
         protocol_name_rel_off = fileoff_for_vmaddr(protocol_addr + 8)
         if protocol_name_rel_off is None or protocol_name_rel_off + 4 > len(image):
             continue
@@ -311,7 +323,9 @@ for _seg, sect, base, size, off, _fl in sections:
         table_addr = conformance_addr + 8 + witness_rel if witness_rel else 0
         table_off = fileoff_for_vmaddr(table_addr) if table_addr else None
         funcs = []
+        table_hex = ""
         if table_off is not None and req_count <= 128:
+            table_hex = image[table_off:min(len(image), table_off + min(128, 8 + req_count * 8))].hex()
             # Standard 64-bit Swift witness table: description word followed
             # by function witness slots. Treat only executable pointers as
             # callable entries; unresolved/relative forms are left out.
@@ -321,9 +335,23 @@ for _seg, sect, base, size, off, _fl in sections:
                     break
                 fn = struct.unpack_from("<Q", image, entry_off)[0]
                 if is_text_address(fn):
-                    funcs.append((slot, fn))
+                    funcs.append((slot, fn, "abs64"))
+            # Some Apple Swift images use relative witness tables. Check both
+            # common header sizes and resolve signed relative implementation
+            # pointers. Keep only destinations that land in __text.
+            for header_size in (4, 8):
+                for slot in range(min(req_count, 128)):
+                    entry_off = table_off + header_size + slot * 4
+                    if entry_off + 4 > len(image):
+                        break
+                    rel_fn = struct.unpack_from("<i", image, entry_off)[0]
+                    if rel_fn == 0:
+                        continue
+                    fn = resolve_indirectable_relative(table_addr + header_size + slot * 4, rel_fn)
+                    if fn and is_text_address(fn) and not any(item[0] == slot and item[1] == fn for item in funcs):
+                        funcs.append((slot, fn, f"rel32/header{header_size}"))
         protocol_witnesses.append((class_name, protocol_name, conformance_addr,
-                                   table_addr, req_count, funcs, conf_flags))
+                                   table_addr, req_count, funcs, conf_flags, table_hex))
 
 for base, size, off in text_sections:
     end = off + size - 4
@@ -413,8 +441,19 @@ with out.open("w", encoding="utf-8") as f:
         for line in insns:
             f.write(f"  {line}\n")
     f.write("\nSelected Swift protocol conformances and executable witness slots:\n")
-    for class_name, protocol_name, conf_addr, table_addr, req_count, funcs, conf_flags in protocol_witnesses:
-        f.write(f"CONFORMANCE type={class_name} protocol={protocol_name!r} descriptor=0x{conf_addr:x} witness=0x{table_addr:x} requirements={req_count} flags=0x{conf_flags:08x} text_slots={funcs!r}\n")
+    for class_name, protocol_name, conf_addr, table_addr, req_count, funcs, conf_flags, table_hex in protocol_witnesses:
+        f.write(f"CONFORMANCE type={class_name} protocol={protocol_name!r} descriptor=0x{conf_addr:x} witness=0x{table_addr:x} requirements={req_count} flags=0x{conf_flags:08x} text_slots={funcs!r} bytes={table_hex}\n")
+        for slot, fn, mode in funcs[:24]:
+            fn_off = fileoff_for_vmaddr(fn)
+            insns = []
+            if fn_off is not None:
+                for ins in decoder.disasm(image[fn_off:fn_off + 128], fn):
+                    insns.append(f"0x{ins.address:x}: {ins.mnemonic} {ins.op_str}".rstrip())
+                    if ins.mnemonic == "ret" or len(insns) >= 24:
+                        break
+            f.write(f"  WITNESS[{slot}] {mode} function=0x{fn:x}\n")
+            for line in insns:
+                f.write(f"    {line}\n")
     f.write(f"\nDirect code references found: {len(hits)}\n")
     for code, dest, form, raw in hits:
         f.write(f"{form} code=0x{code:x} fileoff=0x{fileoff_for_vmaddr(code):x} target=0x{dest:x} {targets[dest]} insn=0x{raw:08x}\n")
