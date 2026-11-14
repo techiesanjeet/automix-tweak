@@ -23,6 +23,8 @@ jobs:
     timeout-minutes: 20
     steps:
       - uses: actions/checkout@v4
+      - name: Install ARM64 instruction decoder
+        run: python3 -m pip install --disable-pip-version-check capstone
       - name: Download and unpack supplied IPA
         env:
           IPA_URL: ${{ inputs.ipa_url || 'https://www.mediafire.com/file/f2m6phjgdhtpyen/Taurus-0.60.6.ipa/file?dkey=10sos8x35xg&r=957' }}

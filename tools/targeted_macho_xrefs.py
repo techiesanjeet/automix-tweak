@@ -4,6 +4,7 @@ import pathlib
 import re
 import struct
 import sys
+from capstone import Cs, CS_ARCH_ARM64, CS_MODE_ARM
 
 ROOT = pathlib.Path.cwd()
 OUT = ROOT / "analysis-output"
@@ -234,8 +235,8 @@ for desc_addr, flags, name, _field_desc in type_descriptors:
                     method_off = desc_off + 52 + trailing_init_size + m * 8
                     method_flags, impl_rel = struct.unpack_from("<Ii", image, method_off)
                     indirect = bool(impl_rel & 1)
-                    impl_addr = method_addr + (impl_rel & ~1 if indirect else impl_rel)
-                    if indirect:
+                    impl_addr = 0 if impl_rel == 0 else method_addr + (impl_rel & ~1 if indirect else impl_rel)
+                    if indirect and impl_addr:
                         impl_off = fileoff_for_vmaddr(impl_addr)
                         if impl_off is not None and impl_off + 8 <= len(image):
                             impl_addr = struct.unpack_from("<Q", image, impl_off)[0]
@@ -244,6 +245,27 @@ for desc_addr, flags, name, _field_desc in type_descriptors:
     desc_off = fileoff_for_vmaddr(desc_addr)
     raw_descriptor = image[desc_off:desc_off + 72].hex() if desc_off is not None else ""
     vtable_reports.append((desc_addr, flags, name, notes, vtable_methods, raw_descriptor))
+
+method_disassembly = []
+decoder = Cs(CS_ARCH_ARM64, CS_MODE_ARM)
+for _desc, _flags, class_name, _notes, methods, _raw in vtable_reports:
+    for idx, mflags, impl, _sym, _indirect in methods:
+        if not impl:
+            continue
+        file_off = fileoff_for_vmaddr(impl)
+        code_sec = next(((base, size, off) for _sg, sect, base, size, off, _fl in sections
+                         if sect == "__text" and base <= impl < base + size and off + size <= len(image)), None)
+        if file_off is None or code_sec is None:
+            method_disassembly.append((class_name, idx, impl, "address is not in a file-backed __text section", []))
+            continue
+        sec_base, sec_size, sec_off = code_sec
+        max_bytes = min(512, sec_off + sec_size - file_off)
+        insns = []
+        for ins in decoder.disasm(image[file_off:file_off + max_bytes], impl):
+            insns.append(f"0x{ins.address:x}: {ins.mnemonic} {ins.op_str}".rstrip())
+            if ins.mnemonic == "ret" or len(insns) >= 96:
+                break
+        method_disassembly.append((class_name, idx, impl, "", insns))
 
 for base, size, off in text_sections:
     end = off + size - 4
@@ -326,7 +348,12 @@ with out.open("w", encoding="utf-8") as f:
     for desc, flags, name, notes, methods, raw_descriptor in vtable_reports:
         f.write(f"VTABLE {name} descriptor=0x{desc:x} flags=0x{flags:08x} {'; '.join(notes)} raw={raw_descriptor}\n")
         for idx, mflags, impl, sym, indirect in methods:
-            f.write(f"  METHOD[{idx}] flags=0x{mflags:08x} impl=0x{impl:x} indirect={indirect} symbol={sym!r}\n")
+            f.write(f"  METHOD[{idx}] flags=0x{mflags:08x} impl={'null' if not impl else hex(impl)} indirect={indirect} symbol={sym!r}\n")
+    f.write("\nDisassembly of non-null selected vtable implementations:\n")
+    for class_name, idx, impl, error, insns in method_disassembly:
+        f.write(f"FUNCTION {class_name} METHOD[{idx}] at 0x{impl:x} {error}\n")
+        for line in insns:
+            f.write(f"  {line}\n")
     f.write(f"\nDirect code references found: {len(hits)}\n")
     for code, dest, form, raw in hits:
         f.write(f"{form} code=0x{code:x} fileoff=0x{fileoff_for_vmaddr(code):x} target=0x{dest:x} {targets[dest]} insn=0x{raw:08x}\n")
