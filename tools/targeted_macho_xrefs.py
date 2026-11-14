@@ -155,6 +155,7 @@ for _seg, sect, base, size, off, _fl in sections:
         p += 16 + record_size * count
 
 type_associations = []
+type_descriptors = []
 for _seg, sect, base, size, off, _fl in sections:
     if sect != "__swift5_types" or off + size > len(image):
         continue
@@ -168,8 +169,67 @@ for _seg, sect, base, size, off, _fl in sections:
         field_rel = struct.unpack_from("<i", image, desc_off + 16)[0]
         name = cstring_at_vmaddr(desc_addr + 8 + name_rel) if name_rel else ""
         field_desc_addr = desc_addr + 16 + field_rel if field_rel else 0
+        type_descriptors.append((desc_addr, flags, name, field_desc_addr))
         if field_desc_addr in field_descriptors:
             type_associations.append((desc_addr, flags & 0x1F, name, field_desc_addr, field_descriptors[field_desc_addr]))
+
+# For selected nongeneric classes with straightforward trailing metadata, read
+# the Swift ABI vtable header and relative implementation pointers. No methods
+# are invoked; reported addresses are static metadata only.
+symbols = {}
+if symtab:
+    symoff, nsyms, stroff, strsize = symtab[2], symtab[3], symtab[4], symtab[5]
+    if symoff + nsyms * 16 <= len(image) and stroff + strsize <= len(image):
+        for idx in range(nsyms):
+            strx, ntype, _sect, _desc, value = struct.unpack_from("<IBBHQ", image, symoff + idx * 16)
+            if strx == 0 or strx >= strsize or ntype & 0x0E != 0x0E:
+                continue
+            start = stroff + strx
+            end = image.find(b"\0", start, min(stroff + strsize, start + 512))
+            if end > start:
+                symbols[value] = image[start:end].decode("utf-8", "replace")
+
+vtable_reports = []
+selected_types = {"MultiPlayerImpl", "MultiPlayerSessionImpl", "InternalPlayerFactoryImpl",
+                  "InternalPlayerImpl", "InternalAudioCoordinator", "MixingTransitionPlayerImpl"}
+for desc_addr, flags, name, _field_desc in type_descriptors:
+    if name not in selected_types or (flags & 0x1F) != 16:
+        continue
+    notes = []
+    vtable_methods = []
+    if not (flags & 0x80000000):
+        notes.append("no Swift vtable metadata flag")
+    elif flags & 0x80:
+        notes.append("generic descriptor; trailing layout not decoded")
+    elif (flags >> 16) & 3:
+        notes.append("special metadata initialization; trailing layout not decoded")
+    elif flags & (1 << 29):
+        notes.append("resilient superclass; trailing layout not decoded")
+    elif flags & 0x20:
+        notes.append("invertible-protocol trailing metadata; vtable offset not decoded")
+    else:
+        desc_off = fileoff_for_vmaddr(desc_addr)
+        if desc_off is None or desc_off + 52 > len(image):
+            notes.append("descriptor outside file")
+        else:
+            vt_off = desc_off + 44
+            slot_offset, method_count = struct.unpack_from("<II", image, vt_off)
+            if method_count > 128 or vt_off + 8 + method_count * 8 > len(image):
+                notes.append(f"invalid vtable size {method_count}")
+            else:
+                for m in range(method_count):
+                    method_addr = desc_addr + 52 + m * 8
+                    method_off = desc_off + 52 + m * 8
+                    method_flags, impl_rel = struct.unpack_from("<Ii", image, method_off)
+                    indirect = bool(impl_rel & 1)
+                    impl_addr = method_addr + (impl_rel & ~1 if indirect else impl_rel)
+                    if indirect:
+                        impl_off = fileoff_for_vmaddr(impl_addr)
+                        if impl_off is not None and impl_off + 8 <= len(image):
+                            impl_addr = struct.unpack_from("<Q", image, impl_off)[0]
+                    vtable_methods.append((m, method_flags, impl_addr, symbols.get(impl_addr, ""), indirect))
+                notes.append(f"vtableOffset={slot_offset} entries={method_count}")
+    vtable_reports.append((desc_addr, flags, name, notes, vtable_methods))
 
 for base, size, off in text_sections:
     end = off + size - 4
@@ -245,12 +305,17 @@ with out.open("w", encoding="utf-8") as f:
     f.write(f"\nSwift type descriptors associated with those field descriptors: {len(type_associations)}\n")
     for desc, kind, name, field_desc, (_owner, _field_kind, fields) in type_associations:
         f.write(f"TYPE-DESCRIPTOR 0x{desc:x} kind={kind} name={name!r} fields=0x{field_desc:x} {fields!r}\n")
+    f.write(f"\nSelected Swift class vtables: {len(vtable_reports)}\n")
+    for desc, flags, name, notes, methods in vtable_reports:
+        f.write(f"VTABLE {name} descriptor=0x{desc:x} flags=0x{flags:08x} {'; '.join(notes)}\n")
+        for idx, mflags, impl, sym, indirect in methods:
+            f.write(f"  METHOD[{idx}] flags=0x{mflags:08x} impl=0x{impl:x} indirect={indirect} symbol={sym!r}\n")
     f.write(f"\nDirect code references found: {len(hits)}\n")
     for code, dest, form, raw in hits:
         f.write(f"{form} code=0x{code:x} fileoff=0x{fileoff_for_vmaddr(code):x} target=0x{dest:x} {targets[dest]} insn=0x{raw:08x}\n")
     if not hits:
         f.write("No exact ADR/ADRP+ADD references were found. This is inconclusive: Swift may use relative metadata tables, indirect references, or encrypted code.\n")
-print(f"Wrote {out}; strings={len(targets)}, data refs={len(data_refs)}, field descriptors={len(field_descriptors)}, type associations={len(type_associations)}, code references={len(hits)}, cryptid={cryptid}", flush=True)
+print(f"Wrote {out}; strings={len(targets)}, data refs={len(data_refs)}, field descriptors={len(field_descriptors)}, type associations={len(type_associations)}, vtable classes={len(vtable_reports)}, code references={len(hits)}, cryptid={cryptid}", flush=True)
 print("----- bounded scan report -----", flush=True)
 print(out.read_text(encoding="utf-8")[-16000:], flush=True)
 
