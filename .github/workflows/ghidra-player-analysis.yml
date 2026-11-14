@@ -1,0 +1,76 @@
+name: Ghidra Spotify player-path analysis
+
+on:
+  push:
+    branches: [analysis/ghidra-player-path]
+    paths:
+      - "tools/DumpPlayerAnalysis.java"
+      - ".github/workflows/ghidra-player-analysis.yml"
+  workflow_dispatch:
+    inputs:
+      ipa_url:
+        description: "MediaFire share URL or direct IPA URL"
+        required: true
+        type: string
+        default: "https://www.mediafire.com/file/f2m6phjgdhtpyen/Taurus-0.60.6.ipa/file?dkey=10sos8x35xg&r=957"
+
+permissions:
+  contents: read
+
+jobs:
+  analyze:
+    runs-on: macos-latest
+    timeout-minutes: 120
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "25"
+      - name: Download and unpack supplied IPA
+        env:
+          IPA_URL: ${{ inputs.ipa_url || 'https://www.mediafire.com/file/f2m6phjgdhtpyen/Taurus-0.60.6.ipa/file?dkey=10sos8x35xg&r=957' }}
+        run: python3 tools/analyze_ipa.py
+      - name: Install Ghidra
+        run: |
+          set -euo pipefail
+          GHIDRA_URL="$(python3 - <<'PY'
+          import json, urllib.request
+          req = urllib.request.Request(
+              "https://api.github.com/repos/NationalSecurityAgency/ghidra/releases/latest",
+              headers={"User-Agent": "automix-static-analysis"})
+          with urllib.request.urlopen(req, timeout=30) as response:
+              release = json.load(response)
+          print(next(a["browser_download_url"] for a in release["assets"]
+                     if a["name"].startswith("ghidra_") and a["name"].endswith(".zip")))
+          PY
+          )"
+          curl -fL "$GHIDRA_URL" -o ghidra.zip
+          mkdir ghidra-dist
+          ditto -x -k ghidra.zip ghidra-dist
+          ANALYZE_HEADLESS="$(find "$PWD/ghidra-dist" -path '*/support/analyzeHeadless' -print -quit)"
+          test -n "$ANALYZE_HEADLESS"
+          GHIDRA_HOME="$(cd "$(dirname "$ANALYZE_HEADLESS")/.." && pwd)"
+          test -x "$GHIDRA_HOME/support/analyzeHeadless"
+          echo "GHIDRA_HOME=$GHIDRA_HOME" >> "$GITHUB_ENV"
+      - name: Analyze Spotify executable and decompile metadata xrefs
+        run: |
+          set -euo pipefail
+          SPOTIFY_BIN="$(find ipa-work/extracted -type f -path '*/Spotify.app/Spotify' -print -quit)"
+          test -f "$SPOTIFY_BIN"
+          mkdir -p "$RUNNER_TEMP/ghidra-project"
+          "$GHIDRA_HOME/support/analyzeHeadless" \
+            "$RUNNER_TEMP/ghidra-project" SpotifyPlayerPath \
+            -import "$SPOTIFY_BIN" -overwrite \
+            -postScript "$GITHUB_WORKSPACE/tools/DumpPlayerAnalysis.java" \
+            -deleteProject
+          test -s analysis-output/ghidra-player-xrefs.txt
+      - name: Upload focused static-analysis output only
+        uses: actions/upload-artifact@v4
+        with:
+          name: Spotify-Ghidra-Player-Path
+          path: |
+            analysis-output/ghidra-player-xrefs.txt
+            analysis-output/REPORT.md
+          if-no-files-found: error
+          retention-days: 14
