@@ -76,6 +76,15 @@ def fileoff_for_vmaddr(addr):
             return off + (addr - vm)
     return None
 
+def cstring_at_vmaddr(addr):
+    off = fileoff_for_vmaddr(addr)
+    if off is None:
+        return ""
+    end = image.find(b"\0", off, min(len(image), off + 512))
+    if end < 0:
+        end = min(len(image), off + 160)
+    return image[off:end].decode("utf-8", "replace")
+
 def signed(value, bits):
     return value - (1 << bits) if value & (1 << (bits - 1)) else value
 
@@ -118,6 +127,49 @@ for _seg, _sect, base, size, off in data_sections:
             if candidate in targets:
                 data_refs[place] = candidate
                 break
+
+# Decode the published Swift reflection field-descriptor layout only far
+# enough to associate matching property names with their owning type strings.
+field_descriptors = {}
+for _seg, sect, base, size, off, _fl in sections:
+    if sect != "__swift5_fieldmd" or off + size > len(image):
+        continue
+    p = 0
+    while p + 16 <= size:
+        type_rel, super_rel, kind, record_size, count = struct.unpack_from("<iiHHI", image, off + p)
+        if kind > 6 or record_size < 12 or record_size > 128 or count > 256 or p + 16 + record_size * count > size:
+            p += 4
+            continue
+        desc_addr = base + p
+        owner = cstring_at_vmaddr(desc_addr + type_rel) if type_rel else ""
+        found = []
+        for idx in range(count):
+            rec_off = p + 16 + idx * record_size
+            rec_addr = base + rec_off
+            _flags, field_type_rel, field_name_rel = struct.unpack_from("<Iii", image, off + rec_off)
+            field_name = cstring_at_vmaddr(rec_addr + 8 + field_name_rel) if field_name_rel else ""
+            if field_name and TERMS.search(field_name.encode("utf-8", "replace")):
+                found.append((field_name, cstring_at_vmaddr(rec_addr + 4 + field_type_rel) if field_type_rel else ""))
+        if found:
+            field_descriptors[desc_addr] = (owner, kind, found)
+        p += 16 + record_size * count
+
+type_associations = []
+for _seg, sect, base, size, off, _fl in sections:
+    if sect != "__swift5_types" or off + size > len(image):
+        continue
+    for p in range(0, size - 3, 4):
+        desc_addr = base + p + struct.unpack_from("<i", image, off + p)[0]
+        desc_off = fileoff_for_vmaddr(desc_addr)
+        if desc_off is None or desc_off + 20 > len(image):
+            continue
+        flags = struct.unpack_from("<I", image, desc_off)[0]
+        name_rel = struct.unpack_from("<i", image, desc_off + 8)[0]
+        field_rel = struct.unpack_from("<i", image, desc_off + 16)[0]
+        name = cstring_at_vmaddr(desc_addr + 8 + name_rel) if name_rel else ""
+        field_desc_addr = desc_addr + 16 + field_rel if field_rel else 0
+        if field_desc_addr in field_descriptors:
+            type_associations.append((desc_addr, flags & 0x1F, name, field_desc_addr, field_descriptors[field_desc_addr]))
 
 for base, size, off in text_sections:
     end = off + size - 4
@@ -187,12 +239,18 @@ with out.open("w", encoding="utf-8") as f:
     f.write(f"\nMetadata pointer slots resolving to target strings: {len(data_refs)}\n")
     for slot, target in list(sorted(data_refs.items()))[:200]:
         f.write(f"DATA-REF slot=0x{slot:x} target=0x{target:x} {targets[target]}\n")
+    f.write(f"\nSwift field descriptors with targeted field names: {len(field_descriptors)}\n")
+    for desc, (owner, kind, fields) in sorted(field_descriptors.items()):
+        f.write(f"FIELD-DESCRIPTOR 0x{desc:x} owner={owner!r} kind={kind} fields={fields!r}\n")
+    f.write(f"\nSwift type descriptors associated with those field descriptors: {len(type_associations)}\n")
+    for desc, kind, name, field_desc, (_owner, _field_kind, fields) in type_associations:
+        f.write(f"TYPE-DESCRIPTOR 0x{desc:x} kind={kind} name={name!r} fields=0x{field_desc:x} {fields!r}\n")
     f.write(f"\nDirect code references found: {len(hits)}\n")
     for code, dest, form, raw in hits:
         f.write(f"{form} code=0x{code:x} fileoff=0x{fileoff_for_vmaddr(code):x} target=0x{dest:x} {targets[dest]} insn=0x{raw:08x}\n")
     if not hits:
         f.write("No exact ADR/ADRP+ADD references were found. This is inconclusive: Swift may use relative metadata tables, indirect references, or encrypted code.\n")
-print(f"Wrote {out}; strings={len(targets)}, code references={len(hits)}, cryptid={cryptid}", flush=True)
+print(f"Wrote {out}; strings={len(targets)}, data refs={len(data_refs)}, field descriptors={len(field_descriptors)}, type associations={len(type_associations)}, code references={len(hits)}, cryptid={cryptid}", flush=True)
 print("----- bounded scan report -----", flush=True)
 print(out.read_text(encoding="utf-8")[-16000:], flush=True)
 
