@@ -100,6 +100,25 @@ if not text_sections:
     raise ValueError("No __text section found")
 
 hits = []
+data_refs = {}
+data_sections = [(seg, sect, addr, size, off) for seg, sect, addr, size, off, _fl in sections
+                 if sect != "__text" and off + size <= len(image)
+                 and (sect.startswith("__swift5_") or sect.startswith("__objc_")
+                      or sect in ("__const", "__data_const", "__got", "__la_symbol_ptr"))]
+for _seg, _sect, base, size, off in data_sections:
+    # Swift and Objective-C metadata commonly holds relative pointers. Also
+    # check pointer slots, because code may load an indirect selector/name.
+    for rel in range(0, max(0, size - 7), 4):
+        place = base + rel
+        value64 = struct.unpack_from("<Q", image, off + rel)[0]
+        if value64 in targets:
+            data_refs[place] = value64
+        value32 = struct.unpack_from("<i", image, off + rel)[0]
+        for candidate in (place + value32, place + 4 + value32):
+            if candidate in targets:
+                data_refs[place] = candidate
+                break
+
 for base, size, off in text_sections:
     end = off + size - 4
     pc = base
@@ -111,6 +130,8 @@ for base, size, off in text_sections:
             dest = pc + signed(imm, 21)
             if dest in targets:
                 hits.append((pc, dest, "ADR", insn))
+            elif dest in data_refs:
+                hits.append((pc, data_refs[dest], "ADR->[DATA REF]", insn))
         # ADRP followed by ADD-immediate to form an exact string address.
         if insn & 0x9F000000 == 0x90000000:
             imm = ((insn >> 5) & 0x7FFFF) | (((insn >> 29) & 3) << 19)
@@ -128,6 +149,19 @@ for base, size, off in text_sections:
                 dest = page + imm12
                 if dest in targets:
                     hits.append((pc, dest, "ADRP+ADD", insn))
+                elif dest in data_refs:
+                    hits.append((pc, data_refs[dest], "ADRP+ADD->[DATA REF]", insn))
+                break
+            # Resolve common 64-bit LDR literal-through-page sequences.
+            for delta in (4, 8, 12, 16):
+                if off + delta > end:
+                    break
+                nxt = struct.unpack_from("<I", image, off + delta)[0]
+                if nxt & 0xFFC00000 != 0xF9400000 or ((nxt >> 5) & 31) != rd:
+                    continue
+                slot = page + (((nxt >> 10) & 0xFFF) * 8)
+                if slot in data_refs:
+                    hits.append((pc, data_refs[slot], "ADRP+LDR->[DATA REF]", insn))
                 break
         pc += 4
         off += 4
@@ -150,6 +184,9 @@ with out.open("w", encoding="utf-8") as f:
     f.write("Reference forms scanned: ADR and ADRP+ADD in __text\n\n")
     for addr, text in sorted(targets.items()):
         f.write(f"STRING 0x{addr:x} {text}\n")
+    f.write(f"\nMetadata pointer slots resolving to target strings: {len(data_refs)}\n")
+    for slot, target in list(sorted(data_refs.items()))[:200]:
+        f.write(f"DATA-REF slot=0x{slot:x} target=0x{target:x} {targets[target]}\n")
     f.write(f"\nDirect code references found: {len(hits)}\n")
     for code, dest, form, raw in hits:
         f.write(f"{form} code=0x{code:x} fileoff=0x{fileoff_for_vmaddr(code):x} target=0x{dest:x} {targets[dest]} insn=0x{raw:08x}\n")
