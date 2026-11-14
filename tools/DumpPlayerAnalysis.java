@@ -1,7 +1,5 @@
 // Ghidra post-analysis script: follow xrefs to Spotify player/mixing metadata
 // and decompile the code functions that consume it. Static analysis only.
-import ghidra.app.decompiler.DecompInterface;
-import ghidra.app.decompiler.DecompileResults;
 import ghidra.app.script.GhidraScript;
 import ghidra.program.model.data.Data;
 import ghidra.program.model.listing.Function;
@@ -33,15 +31,20 @@ public class DumpPlayerAnalysis extends GhidraScript {
         File output = new File(workspace, "analysis-output/ghidra-player-xrefs.txt");
         output.getParentFile().mkdirs();
 
-        Map<String, Function> candidates = new LinkedHashMap<>();
+        Map<String, Function> callers = new LinkedHashMap<>();
         int matchingData = 0;
+        int totalXrefs = 0;
         try (PrintWriter out = new PrintWriter(output, "UTF-8")) {
             out.println("Spotify player/mixing xref analysis (static only)");
             out.println("Program: " + currentProgram.getName());
             out.println("Image base: " + currentProgram.getImageBase());
             out.println();
 
+            // Keep this pass bounded: Ghidra's full-binary decompiler repeatedly
+            // stalled on cross-image references in the prior run. Direct data
+            // xrefs identify the functions that deserve a later narrow review.
             for (Data data : currentProgram.getListing().getDefinedData(true)) {
+                if (monitor.isCancelled() || matchingData >= 80) break;
                 Object value = data.getValue();
                 if (value == null) continue;
                 String text = value.toString();
@@ -59,7 +62,9 @@ public class DumpPlayerAnalysis extends GhidraScript {
                 out.println("DATA " + data.getAddress() + " " + text.replace('\n', ' '));
                 ReferenceIterator refs = currentProgram.getReferenceManager()
                     .getReferencesTo(data.getAddress());
+                int refsForData = 0;
                 while (refs.hasNext()) {
+                    if (monitor.isCancelled() || refsForData >= 32 || totalXrefs >= 500) break;
                     Reference ref = refs.next();
                     Function function = currentProgram.getFunctionManager()
                         .getFunctionContaining(ref.getFromAddress());
@@ -67,42 +72,27 @@ public class DumpPlayerAnalysis extends GhidraScript {
                         + ref.getReferenceType() + " function="
                         + (function == null ? "<none>" : function.getName()
                             + " @ " + function.getEntryPoint()));
-                    if (function != null && candidates.size() < 25) {
-                        candidates.put(function.getEntryPoint().toString(), function);
+                    if (function != null && callers.size() < 200) {
+                        callers.put(function.getEntryPoint().toString(), function);
                     }
+                    refsForData++;
+                    totalXrefs++;
                 }
                 out.flush();
             }
 
             out.println();
             out.println("Matching data entries: " + matchingData);
-            out.println("Unique referencing functions: " + candidates.size());
-            out.println("\n===== REFERENCING FUNCTION DECOMPILATIONS =====");
-            DecompInterface decompiler = new DecompInterface();
-            decompiler.openProgram(currentProgram);
-            try {
-                int emitted = 0;
-                for (Function function : candidates.values()) {
-                    if (monitor.isCancelled() || emitted >= 25) break;
-                    out.println("\n===== FUNCTION " + function.getName() + " @ "
-                        + function.getEntryPoint() + " =====");
-                    out.println("signature: " + function.getSignature());
-                    DecompileResults result = decompiler.decompileFunction(
-                        function, 5, monitor);
-                    if (result != null && result.decompileCompleted()
-                            && result.getDecompiledFunction() != null) {
-                        out.println(result.getDecompiledFunction().getC());
-                    } else {
-                        out.println("DECOMPILATION FAILED: "
-                            + (result == null ? "no result" : result.getErrorMessage()));
-                    }
-                    out.flush();
-                    emitted++;
-                }
-            } finally {
-                decompiler.dispose();
+            out.println("Total direct xrefs recorded: " + totalXrefs);
+            out.println("Unique referencing functions: " + callers.size());
+            out.println("\n===== CALLER INDEX (entry point and Ghidra name only) =====");
+            for (Function function : callers.values()) {
+                out.println(function.getEntryPoint() + "  " + function.getName());
             }
+            out.println("\nNo functions were decompiled in this bounded pass.");
+            out.flush();
         }
         println("Wrote " + output.getAbsolutePath());
     }
 }
+
