@@ -202,25 +202,36 @@ for desc_addr, flags, name, _field_desc in type_descriptors:
         notes.append("no Swift vtable metadata flag")
     elif flags & 0x80:
         notes.append("generic descriptor; trailing layout not decoded")
-    elif (flags >> 16) & 3:
-        notes.append("special metadata initialization; trailing layout not decoded")
     elif flags & (1 << 29):
         notes.append("resilient superclass; trailing layout not decoded")
     elif flags & 0x20:
         notes.append("invertible-protocol trailing metadata; vtable offset not decoded")
     else:
         desc_off = fileoff_for_vmaddr(desc_addr)
-        if desc_off is None or desc_off + 52 > len(image):
+        init_kind = (flags >> 16) & 3
+        # Swift ABI: singleton initialization contributes three 32-bit
+        # relative-pointer fields before the class vtable header.
+        if init_kind == 1:
+            trailing_init_size = 12
+        elif init_kind == 2:
+            notes.append("foreign metadata initialization; trailing layout not decoded")
+            trailing_init_size = None
+        else:
+            trailing_init_size = 0
+        if desc_off is None or trailing_init_size is None:
+            if desc_off is None:
+                notes.append("descriptor outside file")
+        elif desc_off + 44 + trailing_init_size + 8 > len(image):
             notes.append("descriptor outside file")
         else:
-            vt_off = desc_off + 44
+            vt_off = desc_off + 44 + trailing_init_size
             slot_offset, method_count = struct.unpack_from("<II", image, vt_off)
             if method_count > 128 or vt_off + 8 + method_count * 8 > len(image):
                 notes.append(f"invalid vtable size {method_count}")
             else:
                 for m in range(method_count):
-                    method_addr = desc_addr + 52 + m * 8
-                    method_off = desc_off + 52 + m * 8
+                    method_addr = desc_addr + 52 + trailing_init_size + m * 8
+                    method_off = desc_off + 52 + trailing_init_size + m * 8
                     method_flags, impl_rel = struct.unpack_from("<Ii", image, method_off)
                     indirect = bool(impl_rel & 1)
                     impl_addr = method_addr + (impl_rel & ~1 if indirect else impl_rel)
