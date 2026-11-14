@@ -267,6 +267,64 @@ for _desc, _flags, class_name, _notes, methods, _raw in vtable_reports:
                 break
         method_disassembly.append((class_name, idx, impl, "", insns))
 
+# Protocol witness tables are another Swift dispatch route. Resolve only
+# conformances for the exact player/transition type descriptors discovered
+# above, then retain slots that land in the executable __text section.
+text_ranges = [(base, base + size) for _sg, sect, base, size, _off, _fl in sections if sect == "__text"]
+def is_text_address(addr):
+    return any(start <= addr < end for start, end in text_ranges)
+
+target_names = {"MultiPlayerImpl", "MultiPlayerSessionImpl", "InternalPlayerFactoryImpl",
+                "InternalPlayerImpl", "InternalAudioCoordinator", "MixingTransitionPlayerImpl"}
+target_types = {addr: name for addr, _flags, name, _fd in type_descriptors if name in target_names}
+protocol_witnesses = []
+for _seg, sect, base, size, off, _fl in sections:
+    if sect != "__swift5_proto" or off + size > len(image):
+        continue
+    for relpos in range(0, size - 3, 4):
+        conformance_addr = base + relpos + struct.unpack_from("<i", image, off + relpos)[0]
+        conf_off = fileoff_for_vmaddr(conformance_addr)
+        if conf_off is None or conf_off + 16 > len(image):
+            continue
+        protocol_rel, type_rel, witness_rel, conf_flags = struct.unpack_from("<iiiI", image, conf_off)
+        type_kind = (conf_flags >> 3) & 7
+        if type_kind not in (0, 1):
+            continue
+        type_ref_field = conformance_addr + 4
+        type_addr = type_ref_field + type_rel
+        if type_kind == 1:
+            type_slot = fileoff_for_vmaddr(type_addr)
+            if type_slot is None or type_slot + 8 > len(image):
+                continue
+            type_addr = struct.unpack_from("<Q", image, type_slot)[0]
+        class_name = target_types.get(type_addr)
+        if not class_name:
+            continue
+        protocol_addr = conformance_addr + protocol_rel
+        protocol_name_rel_off = fileoff_for_vmaddr(protocol_addr + 8)
+        if protocol_name_rel_off is None or protocol_name_rel_off + 4 > len(image):
+            continue
+        name_rel = struct.unpack_from("<i", image, protocol_name_rel_off)[0]
+        protocol_name = cstring_at_vmaddr(protocol_addr + 8 + name_rel) if name_rel else ""
+        req_count_off = fileoff_for_vmaddr(protocol_addr + 16)
+        req_count = struct.unpack_from("<I", image, req_count_off)[0] if req_count_off is not None else 0
+        table_addr = conformance_addr + 8 + witness_rel if witness_rel else 0
+        table_off = fileoff_for_vmaddr(table_addr) if table_addr else None
+        funcs = []
+        if table_off is not None and req_count <= 128:
+            # Standard 64-bit Swift witness table: description word followed
+            # by function witness slots. Treat only executable pointers as
+            # callable entries; unresolved/relative forms are left out.
+            for slot in range(req_count):
+                entry_off = table_off + 8 * (slot + 1)
+                if entry_off + 8 > len(image):
+                    break
+                fn = struct.unpack_from("<Q", image, entry_off)[0]
+                if is_text_address(fn):
+                    funcs.append((slot, fn))
+        protocol_witnesses.append((class_name, protocol_name, conformance_addr,
+                                   table_addr, req_count, funcs, conf_flags))
+
 for base, size, off in text_sections:
     end = off + size - 4
     pc = base
@@ -354,12 +412,15 @@ with out.open("w", encoding="utf-8") as f:
         f.write(f"FUNCTION {class_name} METHOD[{idx}] at 0x{impl:x} {error}\n")
         for line in insns:
             f.write(f"  {line}\n")
+    f.write("\nSelected Swift protocol conformances and executable witness slots:\n")
+    for class_name, protocol_name, conf_addr, table_addr, req_count, funcs, conf_flags in protocol_witnesses:
+        f.write(f"CONFORMANCE type={class_name} protocol={protocol_name!r} descriptor=0x{conf_addr:x} witness=0x{table_addr:x} requirements={req_count} flags=0x{conf_flags:08x} text_slots={funcs!r}\n")
     f.write(f"\nDirect code references found: {len(hits)}\n")
     for code, dest, form, raw in hits:
         f.write(f"{form} code=0x{code:x} fileoff=0x{fileoff_for_vmaddr(code):x} target=0x{dest:x} {targets[dest]} insn=0x{raw:08x}\n")
     if not hits:
         f.write("No exact ADR/ADRP+ADD references were found. This is inconclusive: Swift may use relative metadata tables, indirect references, or encrypted code.\n")
-print(f"Wrote {out}; strings={len(targets)}, data refs={len(data_refs)}, field descriptors={len(field_descriptors)}, type associations={len(type_associations)}, vtable classes={len(vtable_reports)}, code references={len(hits)}, cryptid={cryptid}", flush=True)
+print(f"Wrote {out}; strings={len(targets)}, data refs={len(data_refs)}, field descriptors={len(field_descriptors)}, type associations={len(type_associations)}, vtable classes={len(vtable_reports)}, target protocol conformances={len(protocol_witnesses)}, code references={len(hits)}, cryptid={cryptid}", flush=True)
 print("----- bounded scan report -----", flush=True)
 print(out.read_text(encoding="utf-8")[-20000:], flush=True)
 
