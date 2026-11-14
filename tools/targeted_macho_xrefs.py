@@ -188,6 +188,7 @@ if symtab:
             end = image.find(b"\0", start, min(stroff + strsize, start + 512))
             if end > start:
                 symbols[value] = image[start:end].decode("utf-8", "replace")
+symbol_name_hits = [name for name in symbols.values() if re.search(r"MultiPlayer|InternalPlayer|MixingTransitionPlayer|AudioCoordinator", name, re.I)]
 
 vtable_reports = []
 selected_types = {"MultiPlayerImpl", "MultiPlayerSessionImpl", "InternalPlayerFactoryImpl",
@@ -229,7 +230,9 @@ for desc_addr, flags, name, _field_desc in type_descriptors:
                             impl_addr = struct.unpack_from("<Q", image, impl_off)[0]
                     vtable_methods.append((m, method_flags, impl_addr, symbols.get(impl_addr, ""), indirect))
                 notes.append(f"vtableOffset={slot_offset} entries={method_count}")
-    vtable_reports.append((desc_addr, flags, name, notes, vtable_methods))
+    desc_off = fileoff_for_vmaddr(desc_addr)
+    raw_descriptor = image[desc_off:desc_off + 72].hex() if desc_off is not None else ""
+    vtable_reports.append((desc_addr, flags, name, notes, vtable_methods, raw_descriptor))
 
 for base, size, off in text_sections:
     end = off + size - 4
@@ -306,8 +309,11 @@ with out.open("w", encoding="utf-8") as f:
     for desc, kind, name, field_desc, (_owner, _field_kind, fields) in type_associations:
         f.write(f"TYPE-DESCRIPTOR 0x{desc:x} kind={kind} name={name!r} fields=0x{field_desc:x} {fields!r}\n")
     f.write(f"\nSelected Swift class vtables: {len(vtable_reports)}\n")
-    for desc, flags, name, notes, methods in vtable_reports:
-        f.write(f"VTABLE {name} descriptor=0x{desc:x} flags=0x{flags:08x} {'; '.join(notes)}\n")
+    f.write(f"\nMach-O symbols in table: {len(symbols)}; player/mixer-named symbols: {len(symbol_name_hits)}\n")
+    for sym in symbol_name_hits[:100]:
+        f.write(f"SYMBOL {sym}\n")
+    for desc, flags, name, notes, methods, raw_descriptor in vtable_reports:
+        f.write(f"VTABLE {name} descriptor=0x{desc:x} flags=0x{flags:08x} {'; '.join(notes)} raw={raw_descriptor}\n")
         for idx, mflags, impl, sym, indirect in methods:
             f.write(f"  METHOD[{idx}] flags=0x{mflags:08x} impl=0x{impl:x} indirect={indirect} symbol={sym!r}\n")
     f.write(f"\nDirect code references found: {len(hits)}\n")
@@ -317,5 +323,5 @@ with out.open("w", encoding="utf-8") as f:
         f.write("No exact ADR/ADRP+ADD references were found. This is inconclusive: Swift may use relative metadata tables, indirect references, or encrypted code.\n")
 print(f"Wrote {out}; strings={len(targets)}, data refs={len(data_refs)}, field descriptors={len(field_descriptors)}, type associations={len(type_associations)}, vtable classes={len(vtable_reports)}, code references={len(hits)}, cryptid={cryptid}", flush=True)
 print("----- bounded scan report -----", flush=True)
-print(out.read_text(encoding="utf-8")[-16000:], flush=True)
+print(out.read_text(encoding="utf-8")[-20000:], flush=True)
 
