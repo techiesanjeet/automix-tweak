@@ -4,6 +4,7 @@
 #include "smartmix/Resampler.hpp"
 #include "smartmix/AudioInputAdapter.hpp"
 #include "smartmix/BeatThisSpectrogram.hpp"
+#include "smartmix/BeatThisChunking.hpp"
 #include "smartmix/BeatThisPostprocessor.hpp"
 #include "smartmix/SmartMixBridge.h"
 #include <cassert>
@@ -345,6 +346,71 @@ int main() {
     beatLogits[1200] = std::numeric_limits<float>::quiet_NaN();
     assert(!postprocessBeatThisLogits(beatLogits.data(), downbeatLogits.data(),
                                       1500, 6, 1494, 50.0, beatGrid));
+
+
+    // Full-track Beat This chunking matches the upstream 1500-frame windows,
+    // six-frame discarded borders, shifted final chunk, and keep-first merge.
+    std::vector<BeatThisChunkSpan> chunkSpans;
+    assert(makeBeatThisChunkPlan(1488, chunkSpans));
+    assert(chunkSpans.size() == 1);
+    assert(chunkSpans[0].startFrame == -6);
+    assert(chunkSpans[0].padLeftFrames == 6 &&
+           chunkSpans[0].padRightFrames == 6);
+    assert(chunkSpans[0].destinationStartFrame == 0 &&
+           chunkSpans[0].destinationEndFrame == 1488);
+    assert(!makeBeatThisChunkPlan(1487, chunkSpans));
+    assert(chunkSpans.empty());
+
+    assert(makeBeatThisChunkPlan(3000, chunkSpans));
+    assert(chunkSpans.size() == 3);
+    assert(chunkSpans[0].startFrame == -6);
+    assert(chunkSpans[1].startFrame == 1482);
+    assert(chunkSpans[2].startFrame == 1506);
+    std::vector<float> fullMel(3000 * kBeatThisMelBins);
+    for (std::size_t frame = 0; frame < 3000; ++frame) {
+        fullMel[frame * kBeatThisMelBins] = static_cast<float>(frame + 1);
+    }
+    std::vector<float> oneChunk(kBeatThisModelFrames * kBeatThisMelBins);
+    assert(copyBeatThisSpectrogramChunk(
+        fullMel.data(), 3000, chunkSpans[0], oneChunk.data()));
+    assert(oneChunk[0] == 0.0f);
+    assert(oneChunk[6 * kBeatThisMelBins] == 1.0f);
+    assert(oneChunk[1493 * kBeatThisMelBins] == 1488.0f);
+    assert(copyBeatThisSpectrogramChunk(
+        fullMel.data(), 3000, chunkSpans[2], oneChunk.data()));
+    assert(oneChunk[0] == 1507.0f);
+    assert(oneChunk[1493 * kBeatThisMelBins] == 3000.0f);
+    assert(oneChunk[1494 * kBeatThisMelBins] == 0.0f);
+
+    std::vector<float> chunkBeat(chunkSpans.size() * kBeatThisModelFrames);
+    std::vector<float> chunkDownbeat(chunkBeat.size());
+    for (std::size_t chunk = 0; chunk < chunkSpans.size(); ++chunk) {
+        std::fill_n(chunkBeat.data() + chunk * kBeatThisModelFrames,
+                    kBeatThisModelFrames, static_cast<float>(chunk + 1));
+        std::fill_n(chunkDownbeat.data() + chunk * kBeatThisModelFrames,
+                    kBeatThisModelFrames, static_cast<float>((chunk + 1) * 10));
+    }
+    std::vector<float> mergedBeat(3000), mergedDownbeat(3000);
+    assert(aggregateBeatThisChunkLogits(
+        chunkSpans, chunkBeat.data(), chunkDownbeat.data(),
+        chunkSpans.size(), 3000, mergedBeat.data(), mergedDownbeat.data()));
+    assert(mergedBeat[0] == 1.0f && mergedBeat[1487] == 1.0f);
+    assert(mergedBeat[1488] == 2.0f && mergedBeat[2975] == 2.0f);
+    assert(mergedBeat[2976] == 3.0f && mergedBeat[2999] == 3.0f);
+    assert(mergedDownbeat[0] == 10.0f && mergedDownbeat[2999] == 30.0f);
+
+    std::vector<BeatThisChunkSpan> longChunkSpans;
+    assert(makeBeatThisChunkPlan(10000, longChunkSpans));
+    std::size_t covered = 0;
+    for (const auto& span : longChunkSpans) {
+        assert(span.destinationStartFrame <= covered);
+        covered = std::max(covered, span.destinationEndFrame);
+    }
+    assert(covered == 10000);
+    chunkBeat[0] = std::numeric_limits<float>::quiet_NaN();
+    assert(!aggregateBeatThisChunkLogits(
+        chunkSpans, chunkBeat.data(), chunkDownbeat.data(),
+        chunkSpans.size(), 3000, mergedBeat.data(), mergedDownbeat.data()));
 
     std::cout << "SmartMix DSP tests passed; BPM=" << analysis.bpm
               << " confidence=" << analysis.beatConfidence << "\n";
