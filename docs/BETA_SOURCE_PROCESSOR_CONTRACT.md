@@ -44,9 +44,9 @@ Disassembly evidence:
 - `SourceFormat` calls `AudioUnitGetProperty(kAudioUnitProperty_StreamFormat)` into the supplied ASBD.
 - `SourceCanReadAhead` checks source-queue support/probe metadata and returns a boolean.
 
-The registration implementation appears to use **one global callback/context slot**, not an evident multi-processor chain. Replacing it could overwrite a host-installed processor. The read-only `SourceProcessorAttached(context)` check only tests that exact context; passing NULL does not enumerate arbitrary attached processors. Therefore the adapter deliberately does not call `SetSourceProcessor` yet.
+The registration implementation appears to use **one global callback/context slot**, not an evident multi-processor chain. Replacing it could overwrite a host-installed processor. The `SourceProcessorAttached(context)` check only tests that exact context; passing NULL does not enumerate arbitrary attached processors. Therefore the adapter deliberately does not call `SetSourceProcessor` yet.
 
-The setter's internal format gate appears to expect a 44.1 kHz, stereo, 32-bit Float, non-interleaved source. The exact accepted ASBD is still checked at runtime via the read-only probe rather than assumed.
+The setter itself checks that the active AudioUnit format is 44.1 kHz and has two channels. The original-pull implementation then validates an AudioBufferList with two buffers, one channel per buffer, non-null data pointers, and at least four bytes per requested frame per buffer. This is consistent with planar Float32 stereo; the ASBD probe must confirm the actual format flags and bit depth before any future PCM interpretation. The setter also waits for an internal render-state flag to clear while holding a control-path mutex, so registration/clear must never run on the render callback.
 
 `SourcePrefix` / `SourceAheadFrames` are **not** treated as a decoded next-track API. `SourceCanReadAhead` only reports source-queue capability. The argument/return semantics and source identity for `SourcePrefix` / `SourceAheadFrames` remain unresolved; the adapter does not call them.
 
@@ -117,4 +117,4 @@ Reference: https://github.com/samj-exe/taurus/blob/stable/docs/tweaks.md (Audio 
 
 ## Implemented non-invasive probe
 
-`BetaSourceProcessorProbe.mm` resolves and calls only the read-only source-format, read-ahead-capability, and NULL-context-attached queries. The diagnostics UI can report the current ASBD and those flags. It does not register a callback, pull PCM, retain audio buffers, or change playback. The probe must be run while Taurus playback is active to obtain a meaningful source format.
+`BetaSourceProcessorProbe.mm` resolves the source-format query, the source-queue read-ahead capability probe, and the NULL-context-attached query. The diagnostics UI can report the current ASBD and those flags. The read-ahead capability call may update internal probe metadata, but the probe does not register a callback, pull PCM, retain audio buffers, or change output samples. The probe must be run while Taurus playback is active to obtain a meaningful source format.
