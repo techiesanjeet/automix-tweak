@@ -1,10 +1,11 @@
 # Taurus SmartMix
 
-Offline-first AutoMix engine with an optional Spotify/Taurus adapter.
+Streaming-compatible AutoMix engine: Taurus streams songs normally while analysis, transition planning, and mixing decisions run locally on-device.
 
 ## Goals
-- Analyze locally available PCM on-device; never upload track audio.
-- Make transition decisions locally with deterministic DSP.
+- Keep Taurus's normal online streaming and buffering path.
+- Analyze decoded PCM locally; never upload track audio or features.
+- Make transition decisions locally with deterministic DSP and a future optional bundled on-device model.
 - Do not scrape or download substitute audio from external services.
 - Mix two real sources; fading the current source alone is not Automix.
 - Fail safely when the host cannot prepare and render two sources.
@@ -12,4 +13,4 @@ Offline-first AutoMix engine with an optional Spotify/Taurus adapter.
 See [docs/SMARTMIX_DESIGN.md](docs/SMARTMIX_DESIGN.md) for the Alpha-build findings and architecture, and [docs/IMPLEMENTATION_STATUS.md](docs/IMPLEMENTATION_STATUS.md) for verified work, limitations, and next engineering gates.
 
 ## Status
-Research and architecture stage. The supplied Alpha IPA has been inspected at binary/string level; runtime behavior still requires on-device validation. Do not commit decrypted IPAs, app binaries, proprietary frameworks, or proprietary model weights.
+Research, architecture, and streaming-analysis prototype stage. The supplied Alpha IPA has been inspected at binary/string level; runtime behavior still requires on-device validation. Do not commit decrypted IPAs, app binaries, proprietary frameworks, or proprietary model weights.
