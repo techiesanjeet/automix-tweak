@@ -6,7 +6,7 @@ LIBRARY_NAME = AutoMixEngine
 
 AutoMixEngine_INSTALL_PATH = /Library/MobileSubstrate/DynamicLibraries
 
-AutoMixEngine_FILES = AutoMixEngine.mm SmartMixCore/src/SmartMix.cpp SmartMixCore/src/SmartMixBridge.cpp SmartMixCore/src/PreparedPCM.cpp SmartMixCore/src/Resampler.cpp SmartMixCore/src/BeatThisSpectrogram.cpp SmartMixCore/src/BeatThisPostprocessor.cpp BeatThisCoreML.mm BetaSourceProcessorProbe.mm
+AutoMixEngine_FILES = AutoMixEngine.mm SmartMixCore/src/SmartMix.cpp SmartMixCore/src/SmartMixBridge.cpp SmartMixCore/src/PreparedPCM.cpp SmartMixCore/src/Resampler.cpp SmartMixCore/src/AudioInputAdapter.cpp SmartMixCore/src/BeatThisSpectrogram.cpp SmartMixCore/src/BeatThisPostprocessor.cpp BeatThisCoreML.mm BetaSourceProcessorProbe.mm
 AutoMixEngine_CFLAGS = -fobjc-arc -I$(THEOS_PROJECT_DIR)/SmartMixCore/include
 AutoMixEngine_CCFLAGS = -std=c++17 -I$(THEOS_PROJECT_DIR)/SmartMixCore/include
 AutoMixEngine_FRAMEWORKS = UIKit Foundation CoreML Accelerate AudioToolbox
