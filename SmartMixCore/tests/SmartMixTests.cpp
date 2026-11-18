@@ -77,12 +77,16 @@ int main() {
     outgoing.analysis = cAnalysis;
     outgoing.energy = 0.6;
     outgoing.outroSeconds = 8.0;
+    outgoing.firstDownbeatSeconds = cAnalysis.firstBeatSeconds;
+    outgoing.beatsPerBar = 4;
     SMTrack incoming{};
     incoming.analysis = cAnalysis;
     incoming.energy = 0.55;
+    incoming.firstDownbeatSeconds = cAnalysis.firstBeatSeconds;
+    incoming.beatsPerBar = 4;
     SMPlan cPlan{};
     assert(SMPlanTransition(&outgoing, &incoming, 1.08, 8, &cPlan) == 1);
-    assert(cPlan.valid && cPlan.durationSeconds > 0.0);
+    assert(cPlan.valid && cPlan.durationSeconds > 0.0 && cPlan.beatsPerBar == 4);
 
     void *cStream = SMCreateStreamingAnalyzer(sampleRate, 16.0);
     assert(cStream != nullptr);
@@ -108,6 +112,26 @@ int main() {
     y.energy = 0.55;
     const auto plan = planTransition(x, y);
     assert(plan.valid && plan.durationSeconds > 0.0 && plan.incomingPlaybackRate == 1.0);
+
+    Track xDownbeat = x;
+    Track yDownbeat = y;
+    xDownbeat.firstDownbeatSeconds = analysis.firstBeatSeconds;
+    yDownbeat.firstDownbeatSeconds = analysis.firstBeatSeconds;
+    xDownbeat.beatsPerBar = 4;
+    yDownbeat.beatsPerBar = 4;
+    const auto downbeatPlan = planTransition(xDownbeat, yDownbeat);
+    assert(downbeatPlan.valid && downbeatPlan.beatsPerBar == 4);
+    const double phrasePeriod = analysis.beatPeriodSeconds * 4.0;
+    const double outgoingPhraseIndex =
+        (downbeatPlan.startOutgoingSeconds - xDownbeat.firstDownbeatSeconds) /
+        phrasePeriod;
+    const double incomingPhraseIndex =
+        (downbeatPlan.startIncomingSeconds - yDownbeat.firstDownbeatSeconds) /
+        phrasePeriod;
+    assert(std::abs(outgoingPhraseIndex - std::round(outgoingPhraseIndex)) < 1e-6);
+    assert(std::abs(incomingPhraseIndex - std::round(incomingPhraseIndex)) < 1e-6);
+    yDownbeat.beatsPerBar = 3;
+    assert(!planTransition(xDownbeat, yDownbeat).valid);
 
     Track edge = x;
     edge.analysis.durationSeconds = 31.9;
