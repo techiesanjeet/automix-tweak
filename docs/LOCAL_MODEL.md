@@ -8,7 +8,7 @@ Use the official CPJKU Beat This! small0 checkpoint as the first on-device ML co
 - Paper: https://arxiv.org/abs/2407.21658
 - License and model inventory: https://github.com/CPJKU/beat_this#available-models
 
-See `docs/BEAT_THIS_INPUT_CONTRACT.md` for the pinned upstream revision, exact audio/spectrogram settings, chunking, and strict local-loader rules. The official inference loader can download a missing named checkpoint; the iOS adapter must pass a bundled local path and must not call the network-capable fallback.\n\nCore ML conversion is a feasibility gate, not an assumption: the upstream network uses rotary embeddings, partial time/frequency transformers, and scaled dot-product attention. Test conversion and parity before choosing Core ML. If it is unsuitable, benchmark a bundled ONNX Runtime path with a Core ML execution provider. Neither runtime may fetch model assets during playback.\n\n## Why this model first
+See `docs/BEAT_THIS_INPUT_CONTRACT.md` for the pinned upstream revision, exact audio/spectrogram settings, chunking, and strict local-loader rules. The official inference loader can download a missing named checkpoint; the iOS adapter must pass a bundled local path and must not call the network-capable fallback.\n\n## Why this model first
 
 - Beat and downbeat predictions are more useful for musical phrase alignment than the current RMS-envelope autocorrelation prototype.
 - The small checkpoint is a practical first asset for an iOS tweak; the full checkpoint is substantially larger.
@@ -45,3 +45,19 @@ Primary validation device supplied by the user: **iPhone 16 Pro running iOS 27.2
 - Measure inference latency, peak memory, thermal impact, and battery use on actual supported iPhones.
 - Keep model inference off the real-time audio callback.
 - Do not claim full AutoMix from beat tracking alone; vocal overlap, key compatibility, phrase/section detection, time-stretch, and true two-deck rendering remain separate components.
+
+
+## Core ML conversion result
+
+The first pinned small0 conversion succeeded on an Apple Silicon macOS runner:
+
+- Upstream source commit: `b95c8ab0c58c2d9fcfd40508ae8dffbc05ac4f5c`.
+- Checkpoint SHA-256: `6074be2c4d490c5f6101fcc374a1ec72ae93456e23bb6019783b849f5dc7d47b`.
+- Toolchain: PyTorch 2.5.0, Core ML Tools 8.3.0, float32 ML Program, minimum Core ML deployment iOS 16.
+- Fixed input: `[1, 1500, 128]` float32 log-mel frames. Outputs are beat and downbeat logits, each `[1, 1500]`.
+- CPU parity against upstream PyTorch passed: maximum absolute error was about `3.8e-6`; mean absolute error was below `9e-7` for both outputs.
+- Verified model artifact: `BeatThisSmall0-CoreML` in GitHub Actions run 44259698594. The model is about 8.8 MB uncompressed inside its package.
+
+The trace is intentionally fixed-shape. Upstream trace warnings indicate that a different time dimension is not guaranteed to work; callers must supply exactly 1500 frames and apply the upstream six-frame edge trimming when stitching chunks. The conversion artifact is **not yet bundled into the tweak or tested on iPhone**.
+
+Exporter: `tools/export_beat_this_coreml.py`. Reproducible workflow: `.github/workflows/beat-this-coreml.yml`. It downloads the pinned checkpoint only during CI, verifies its hash, converts it, and checks PyTorch/Core ML parity. Runtime playback must use a bundled local `.mlmodelc` path only.
