@@ -109,7 +109,36 @@ bool postprocessBeatThisLogits(const float* beatLogits,
         static_cast<std::ptrdiff_t>(intervals.size() / 2);
     std::nth_element(intervals.begin(), middle, intervals.end());
     output.beatPeriodSeconds = *middle;
+    if (intervals.size() % 2 == 0) {
+        const auto lower = std::max_element(intervals.begin(), middle);
+        output.beatPeriodSeconds = (*lower + *middle) * 0.5;
+    }
     output.bpm = 60.0 / output.beatPeriodSeconds;
+
+    if (output.downbeatTimesSeconds.size() >= 2) {
+        std::vector<double> barIntervals;
+        for (std::size_t i = 1; i < output.downbeatTimesSeconds.size(); ++i) {
+            const double interval = output.downbeatTimesSeconds[i] -
+                output.downbeatTimesSeconds[i - 1];
+            if (interval > 0.0) barIntervals.push_back(interval);
+        }
+        if (!barIntervals.empty()) {
+            const auto barMiddle = barIntervals.begin() +
+                static_cast<std::ptrdiff_t>(barIntervals.size() / 2);
+            std::nth_element(barIntervals.begin(), barMiddle, barIntervals.end());
+            double medianBar = *barMiddle;
+            if (barIntervals.size() % 2 == 0) {
+                const auto lower = std::max_element(barIntervals.begin(), barMiddle);
+                medianBar = (*lower + *barMiddle) * 0.5;
+            }
+            const double beatsPerBar = medianBar / output.beatPeriodSeconds;
+            const unsigned roundedMeter = static_cast<unsigned>(std::llround(beatsPerBar));
+            if ((roundedMeter == 3 || roundedMeter == 4) &&
+                std::abs(beatsPerBar - static_cast<double>(roundedMeter)) < 0.35) {
+                output.beatsPerBar = roundedMeter;
+            }
+        }
+    }
     output.usable = std::isfinite(output.bpm) &&
         output.bpm >= 60.0 && output.bpm <= 180.0 &&
         output.beatTimesSeconds.size() >= 4;
