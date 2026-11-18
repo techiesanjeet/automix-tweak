@@ -31,7 +31,7 @@ StreamingAnalyzer::StreamingAnalyzer(double sampleRate,double windowSeconds):sam
  ring_.resize(static_cast<std::size_t>(std::ceil(sampleRate*windowSeconds)),0.0f);
 }
 bool StreamingAnalyzer::append(const AudioView& chunk){
- if(ring_.empty()||!chunk.samples||!chunk.frames||!chunk.channels||chunk.channels>8||!std::isfinite(chunk.sampleRate)||std::abs(chunk.sampleRate-sampleRate_)>0.5)return false;
+ if(ring_.empty()||!chunk.samples||!chunk.frames||!chunk.channels||chunk.channels>8||chunk.frames>SIZE_MAX/chunk.channels||chunk.frames>UINT64_MAX-framesSeen_||!std::isfinite(chunk.sampleRate)||std::abs(chunk.sampleRate-sampleRate_)>0.5)return false;
  // Validate the entire chunk before mutating the rolling window. A malformed
  // chunk must not leave a partially appended prefix in the analyzer state.
  for(std::size_t i=0;i<chunk.frames*static_cast<std::size_t>(chunk.channels);++i)
