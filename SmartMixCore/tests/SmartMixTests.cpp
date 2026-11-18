@@ -1,3 +1,4 @@
+#include <algorithm>
 #include "smartmix/SmartMix.hpp"
 #include <cassert>
 #include <cmath>
