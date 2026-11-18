@@ -2,6 +2,7 @@ TARGET := iphone:clang:latest:14.0
 ARCHS = arm64
 
 LIBRARY_NAME = AutoMixEngine
+# Package targets include both the dylib and the locally compiled model bundle.
 
 AutoMixEngine_INSTALL_PATH = /Library/MobileSubstrate/DynamicLibraries
 
