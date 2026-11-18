@@ -247,20 +247,21 @@ int main() {
     // downbeat snapping to the nearest detected beat.
     std::vector<float> beatLogits(1500, -5.0f);
     std::vector<float> downbeatLogits(1500, -5.0f);
-    for (std::size_t frame : {100u, 125u, 150u, 175u, 200u, 225u, 250u}) {
+    for (std::size_t frame = 100; frame <= 500; frame += 25) {
         beatLogits[frame] = 5.0f;
     }
-    beatLogits[251] = 5.0f; // adjacent activation merges to one midpoint
-    for (std::size_t frame : {100u, 152u, 200u, 250u}) {
+    beatLogits[501] = 5.0f; // adjacent activation merges to one midpoint
+    for (std::size_t frame : {100u, 202u, 300u, 400u, 500u}) {
         downbeatLogits[frame] = 6.0f;
     }
     BeatGrid beatGrid;
     assert(postprocessBeatThisLogits(beatLogits.data(), downbeatLogits.data(),
                                      1500, 6, 1494, 50.0, beatGrid));
     assert(beatGrid.usable && std::abs(beatGrid.bpm - 120.0) < 1e-6);
-    assert(beatGrid.beatTimesSeconds.size() == 7);
-    assert(beatGrid.downbeatTimesSeconds.size() == 4);
-    assert(std::abs(beatGrid.downbeatTimesSeconds[1] - 3.0) < 1e-6);
+    assert(beatGrid.beatsPerBar == 4);
+    assert(beatGrid.beatTimesSeconds.size() == 17);
+    assert(beatGrid.downbeatTimesSeconds.size() == 5);
+    assert(std::abs(beatGrid.downbeatTimesSeconds[1] - 4.0) < 1e-6);
     beatLogits[1200] = std::numeric_limits<float>::quiet_NaN();
     assert(!postprocessBeatThisLogits(beatLogits.data(), downbeatLogits.data(),
                                       1500, 6, 1494, 50.0, beatGrid));
