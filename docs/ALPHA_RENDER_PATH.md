@@ -26,6 +26,14 @@ The Alpha audio insertion layer installs a source processor through `SGAudioPipe
 
 The Alpha binary contains an external acquisition path using YouTube Music search/player resolution, downloading, cache, and transcoding. Its log strings describe rendering from two cached audio files and matching the outgoing prepared audio against the live Spotify audio. That acquisition path is **not suitable** for this project and must not be used.
 
+### File-oriented PrepareIncoming entry point (confirmed)
+
+Further disassembly of Alpha's exported `SGAutoMixEnginePrepareIncoming` confirms that its native entry point is file-oriented: the Swift ABI signature takes four C-string path arguments and a floating-point parameter, and the function converts those C strings into Foundation `URL.fileURLWithPath` values before starting the preparation worker. It does not take a Spotify player object, track queue object, AudioBufferList, or incoming source handle.
+
+This reinforces the distinction between Alpha's renderer and the required Taurus streaming adapter. Alpha can prepare and render PCM once its source files are available, but this entry point does not show how to obtain the next song from Taurus's normal online stream. The external download/provider path is therefore not a solution to the incoming-PCM problem.
+
+## Required project architecture
+
 The user's required architecture is different:
 
 1. Taurus streams both tracks through its normal playback/queue path.
@@ -70,6 +78,7 @@ Do not transplant Alpha's dylib or copy its external-download pipeline. Instead,
 ### Confidence
 
 - **High confidence:** Alpha has an offline prepare/render pipeline and a source-processor PCM insertion layer.
+- **High confidence:** Alpha's exported PrepareIncoming interface is based on local file paths, not a native next-player/PCM handle.
 - **High confidence:** Beta has the lower-level source processor and read-ahead-related APIs but lacks Alpha's AutoMix engine/arm layer.
 - **Not yet proven:** Beta exposes the next queued song as a separate decoded PCM source early enough to build the incoming transition without any duplicate download.
 - **Not yet proven:** seamless source-clock rejoin under real playback, seek, interruption, and route changes on iPhone 16 Pro / iOS 27.2.1.
