@@ -23,8 +23,9 @@
 - Synthetic 120 BPM and 100 BPM fixtures, including stereo downmix coverage.
 - Phrase-length overlap calculation and beat-phase alignment.
 - Equal-power two-buffer gain rendering.
+- Worker-side 32-tap windowed-sinc sample-rate conversion and varispeed; this changes pitch and is not pitch-preserving time stretch.
 - Fixed-capacity `PreparedPCMSubstitution` slot: worker-side preparation, lock-free state publication, exact source-epoch/frame scheduling, bounded callback memcpy, deterministic original-stream rejoin, and cancellation on discontinuity.
-- Tests for 120/100 BPM, stereo downmix, playback-rate-aware incoming buffer bounds, malformed metadata, prepared PCM boundary crossing, exact rejoin, late start, epoch mismatch, and cancellation.
+- Tests for 120/100 BPM, stereo downmix, playback-rate-aware incoming buffer bounds, malformed metadata, resampler frequency/varispeed, prepared PCM boundary crossing, exact rejoin, late start, epoch mismatch, and cancellation.
 
 ## Alpha/Beta architecture finding
 Static analysis of the supplied Alpha 60.5 and Beta 60.7 binaries is documented in `docs/ALPHA_RENDER_PATH.md`.
@@ -40,7 +41,7 @@ This remains a DSP prototype, not an Apple Music AutoMix replacement:
 - BPM can be ambiguous at half/double tempo; confidence is heuristic.
 - Spectral-flux tempo/phase estimates are still heuristic; the phase is not a downbeat or phrase-one detector.
 - Key, sections, vocal density, stems, and intro/outro detection are not implemented.
-- `incomingPlaybackRate` is a plan value only; no time-stretch engine is implemented.
+- `incomingPlaybackRate` is consumed by the varispeed resampler, which shifts pitch; pitch-preserving time stretch is not implemented.
 - The renderer expects two already-decoded, resampled PCM inputs in the same format. `PreparedPCMSubstitution` can substitute a pre-rendered buffer at an explicit host source-frame interval, but it is not connected to Taurus and cannot obtain incoming PCM by itself.
 - Streaming snapshot analysis allocates and must stay on a serialized background worker, never the real-time callback.
 - No Taurus runtime source-processor adapter has been implemented or device-tested.
