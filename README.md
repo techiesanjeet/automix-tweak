@@ -10,7 +10,7 @@ Streaming-compatible AutoMix engine: Taurus streams songs normally while analysi
 - Mix two real sources; fading the current source alone is not Automix.
 - Fail safely when the host cannot prepare and render two sources.
 
-See [docs/SMARTMIX_DESIGN.md](docs/SMARTMIX_DESIGN.md) for the Alpha-build findings and architecture, and [docs/IMPLEMENTATION_STATUS.md](docs/IMPLEMENTATION_STATUS.md) for verified work, limitations, and next engineering gates.
+See [docs/SMARTMIX_DESIGN.md](docs/SMARTMIX_DESIGN.md) for the Alpha-build findings and streaming architecture, [docs/LOCAL_MODEL.md](docs/LOCAL_MODEL.md) for the bundled on-device beat/downbeat model plan, and [docs/IMPLEMENTATION_STATUS.md](docs/IMPLEMENTATION_STATUS.md) for verified work, limitations, and next engineering gates.
 
 ## Status
 Research, architecture, and streaming-analysis prototype stage. The supplied Alpha IPA has been inspected at binary/string level; runtime behavior still requires on-device validation. Do not commit decrypted IPAs, app binaries, proprietary frameworks, or proprietary model weights.
