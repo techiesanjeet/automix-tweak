@@ -407,7 +407,7 @@ int main() {
         covered = std::max(covered, span.destinationEndFrame);
     }
     assert(covered == 10000);
-    chunkBeat[0] = std::numeric_limits<float>::quiet_NaN();
+    chunkBeat[6] = std::numeric_limits<float>::quiet_NaN();
     assert(!aggregateBeatThisChunkLogits(
         chunkSpans, chunkBeat.data(), chunkDownbeat.data(),
         chunkSpans.size(), 3000, mergedBeat.data(), mergedDownbeat.data()));
