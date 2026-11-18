@@ -1,7 +1,7 @@
 # Implementation status
 
 ## Target device\n- Primary validation target: iPhone 16 Pro running iOS 27.2.1. This is a test target, not a minimum deployment target. Theos currently remains at iOS 14.0 until runtime compatibility is measured.\n\n## Implemented and CI-verified
-- Portable C++17 library with no network or media-acquisition code.
+- Portable C++17 library with no network or media-acquisition code, now compiled into the Theos dylib target.\n- Stable C ABI (`SmartMixBridge.h`) exposes PCM analysis, streaming analysis, planning, and equal-power rendering to an Objective-C++/runtime adapter. The bridge is included in CMake tests and in the Theos build source list.\n- Streaming append validates a complete chunk before mutating the rolling buffer, so malformed PCM cannot leave a partially committed chunk.
 - PCM validation, duration, RMS and peak measurement.
 - Bounded rolling-window PCM ingestion for streaming playback: chunk append is allocation-free after setup, while snapshots/analysis are restricted to a serialized background worker.
 - Lightweight 100 Hz energy-onset envelope and autocorrelation BPM estimate (nominal 60–180 BPM range).
@@ -24,7 +24,7 @@ This is a DSP prototype, not an Apple Music AutoMix replacement yet:
 - No Taurus runtime integration has been made; two-deck source access and scheduling remain unproven.
 
 ## Next engineering gates
-1. Convert the official Beat This! small0 checkpoint to a locally bundled Core ML runtime, verify prediction parity against upstream, and retain the C++ fallback. Benchmark inference and memory on the iPhone 16 Pro / iOS 27.2.1. See docs/LOCAL_MODEL.md.
+1. Export the pinned official Beat This! small0 checkpoint and verify parity against upstream; benchmark Core ML feasibility first, with bundled ONNX Runtime/Core ML EP as an alternative. Package a local asset only after parity and device tests. The exact upstream input contract is in `docs/BEAT_THIS_INPUT_CONTRACT.md`. Benchmark inference and memory on the iPhone 16 Pro / iOS 27.2.1. See docs/LOCAL_MODEL.md.
 2. Add multi-band spectral flux, tempo candidates and half/double-time resolution, and benchmark rolling analysis CPU/memory on-device.
 3. Add silence/intro/outro and energy-section analysis with annotated licensed fixtures.
 4. Add a high-quality tempo-preserving time-stretch/resampler and test pitch preservation.
