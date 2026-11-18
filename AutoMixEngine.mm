@@ -3,6 +3,7 @@
 #import <dlfcn.h>
 
 #include "smartmix/BeatThisCoreML.h"
+#include "smartmix/BetaSourceProcessorProbe.h"
 #include <chrono>
 #include <vector>
 
@@ -117,6 +118,50 @@ static NSString *AMBuildReport(void) {
     });
 }
 
+- (void)runBetaPipelineProbeFrom:(UIViewController *)controller {
+    __weak UIViewController *weakController = controller;
+    dispatch_async(dispatch_get_global_queue(QOS_CLASS_UTILITY, 0), ^{
+        SMBetaPipelineInfo info{};
+        const int ok = SMBetaPipelineInspect(&info);
+        NSString *message = nil;
+        if (!ok) {
+            message = @"The read-only Taurus pipeline probe could not run.";
+        } else if (!info.sourceFormatAvailable) {
+            message = [NSString stringWithFormat:
+                @"Source format unavailable.\nResolved probe symbols: 0x%08x.\n"
+                 "No processor was registered and no audio was pulled.", info.symbolMask];
+        } else {
+            const BOOL isFloat = (info.formatFlags & kAudioFormatFlagIsFloat) != 0;
+            const BOOL nonInterleaved =
+                (info.formatFlags & kAudioFormatFlagIsNonInterleaved) != 0;
+            message = [NSString stringWithFormat:
+                @"Source format: %.0f Hz, %u channels, %u-bit %@, %@.\n"
+                 "Format ID: 0x%08x; flags: 0x%08x; bytes/frame: %u.\n"
+                 "Read-ahead metadata available: %@. This does not prove next-track PCM.\n"
+                 "Processor attached with NULL context: %@. Other contexts are not enumerated.\n"
+                 "No processor was registered, no audio was pulled, and playback was not changed.",
+                info.sampleRate, info.channelsPerFrame, info.bitsPerChannel,
+                isFloat ? @"float" : @"non-float",
+                nonInterleaved ? @"non-interleaved" : @"interleaved",
+                info.formatID, info.formatFlags, info.bytesPerFrame,
+                info.canReadAhead ? @"yes" : @"no",
+                info.nullContextProcessorAttached ? @"yes" : @"no"];
+        }
+
+        dispatch_async(dispatch_get_main_queue(), ^{
+            UIViewController *presenter = weakController;
+            if (!presenter) return;
+            UIAlertController *result = [UIAlertController
+                alertControllerWithTitle:@"Taurus Beta source probe"
+                message:message
+                preferredStyle:UIAlertControllerStyleAlert];
+            [result addAction:[UIAlertAction actionWithTitle:@"Close"
+                style:UIAlertActionStyleCancel handler:nil]];
+            [presenter presentViewController:result animated:YES completion:nil];
+        });
+    });
+}
+
 - (void)showStatus {
     UIWindow *window = [self activeWindow];
     UIViewController *controller = window.rootViewController;
@@ -136,6 +181,10 @@ static NSString *AMBuildReport(void) {
     [alert addAction:[UIAlertAction actionWithTitle:@"Test local model"
         style:UIAlertActionStyleDefault handler:^(__unused UIAlertAction *action) {
             [self runLocalModelSelfTestFrom:controller];
+        }]];
+    [alert addAction:[UIAlertAction actionWithTitle:@"Probe Taurus pipeline"
+        style:UIAlertActionStyleDefault handler:^(__unused UIAlertAction *action) {
+            [self runBetaPipelineProbeFrom:controller];
         }]];
     [alert addAction:[UIAlertAction actionWithTitle:@"Close"
         style:UIAlertActionStyleCancel handler:nil]];
