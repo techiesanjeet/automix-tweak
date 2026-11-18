@@ -22,6 +22,7 @@ vDSP/Accelerate mel pipeline without parity tests is not acceptable.
 ## Model and temporal chunking
 
 - The selected checkpoint is `small0`, documented upstream at about 8.1 MB.
+- The official checkpoint download used by the export workflow has SHA-256 `6074be2c4d490c5f6101fcc374a1ec72ae93456e23bb6019783b849f5dc7d47b`; the workflow verifies this before conversion.
 - The official checkpoints are PyTorch Lightning checkpoint files; the
   upstream loader reconstructs the model from checkpoint hyperparameters and
   strips the `model.` state-dict prefix.
@@ -60,3 +61,10 @@ or inference request is permitted during playback.
 - Pinned upstream revision: https://github.com/CPJKU/beat_this/tree/b95c8ab0c58c2d9fcfd40508ae8dffbc05ac4f5c
 - Upstream MIT license: https://github.com/CPJKU/beat_this/blob/b95c8ab0c58c2d9fcfd40508ae8dffbc05ac4f5c/LICENSE
 - Paper: https://arxiv.org/abs/2407.21658
+
+## Repository conversion tooling
+
+- Exporter: `tools/export_beat_this_coreml.py`.
+- Build-time workflow: `.github/workflows/beat-this-coreml.yml`.
+- The workflow checks out the pinned upstream source, downloads the official checkpoint only during CI, converts a fixed 1500-frame model, and requires CPU Core ML/PyTorch logit parity before uploading the `.mlpackage` artifact.
+- This artifact is not yet bundled into the tweak or loaded by the iOS runtime. The runtime must use a local bundled path only.
