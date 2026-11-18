@@ -10,6 +10,7 @@ struct BeatGrid {
     std::vector<double> downbeatTimesSeconds;
     double bpm{0.0};
     double beatPeriodSeconds{0.0};
+    unsigned beatsPerBar{0}; // 3 or 4 when the downbeat interval is reliable
     bool usable{false};
 };
 
