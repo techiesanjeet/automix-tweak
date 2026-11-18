@@ -4,6 +4,9 @@
 #import <dispatch/dispatch.h>
 #import <stdlib.h>
 
+extern "C" void AMBetaAudioTapProbeInstall(void);
+extern "C" NSString *AMBetaAudioTapProbeReport(void);
+
 static NSString *AMSafe(const char *s) { return s ? [NSString stringWithUTF8String:s] : @""; }
 static BOOL AMHas(NSString *s, NSArray<NSString *> *terms) {
     NSString *v = s.lowercaseString;
@@ -114,6 +117,8 @@ static NSString *AMScan(void) {
       NSBundle.mainBundle.infoDictionary[@"CFBundleVersion"] ?: @"unknown",
       [NSDate date], filled, (unsigned long)targets.count, [names componentsJoinedByString:@"\n"]];
     for (Class c in targets) AMAppendClass(report, c);
+    [report appendFormat:@"\\n\\n========== BETA AUDIO TAP PROBE ==========\\n%@\\n",
+      AMBetaAudioTapProbeReport() ?: @"Probe report unavailable."];
     [report appendFormat:@"\n\n========== SCAN SUMMARY ==========\nTarget classes inspected: %lu\nReport characters: %lu\n",
       (unsigned long)targets.count, (unsigned long)report.length];
     NSError *error = nil;
@@ -179,6 +184,7 @@ static void AMRunScan(void) {
 __attribute__((constructor)) static void AutoMixDiscoveryV6(void) {
     @autoreleasepool {
       dispatch_after(dispatch_time(DISPATCH_TIME_NOW, (int64_t)(7*NSEC_PER_SEC)), dispatch_get_main_queue(), ^{
+        AMBetaAudioTapProbeInstall();
         UIWindow *window=nil;
         for (UIScene *scene in UIApplication.sharedApplication.connectedScenes) {
           if (![scene isKindOfClass:UIWindowScene.class] || scene.activationState!=UISceneActivationStateForegroundActive) continue;
