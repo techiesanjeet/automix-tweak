@@ -11,7 +11,7 @@ typedef struct SMBetaPipelineInfo {
     uint32_t symbolMask;
     int32_t sourceFormatAvailable;
     int32_t canReadAhead;
-    int32_t nullContextProcessorAttached;
+    int32_t processorAttachedQueryAvailable;
     double sampleRate;
     uint32_t formatID;
     uint32_t formatFlags;
