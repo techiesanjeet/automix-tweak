@@ -1,35 +1,47 @@
 # Implementation status
 
-## Target device\n- Primary validation target: iPhone 16 Pro running iOS 27.2.1. This is a test target, not a minimum deployment target. Theos currently remains at iOS 14.0 until runtime compatibility is measured.\n\n## Implemented and CI-verified
-- Portable C++17 library with no network or media-acquisition code, now compiled into the Theos dylib target.\n- Stable C ABI (`SmartMixBridge.h`) exposes PCM analysis, streaming analysis, planning, and equal-power rendering to an Objective-C++/runtime adapter. The bridge is included in CMake tests and in the Theos build source list.\n- Streaming append validates a complete chunk before mutating the rolling buffer, so malformed PCM cannot leave a partially committed chunk.
+## Target device
+- Primary validation target: iPhone 16 Pro running iOS 27.2.1. This is a test target, not a minimum deployment target.
+- Theos deployment target remains iOS 14.0 until compatibility is measured.
+
+## Implemented and CI-verified
+- Portable C++17 library with no network or media-acquisition code, compiled into the Theos dylib target.
+- Stable C ABI (`SmartMixBridge.h`) for PCM analysis, streaming analysis, planning, and equal-power rendering.
+- Streaming append validates a complete chunk before mutating the rolling buffer.
 - PCM validation, duration, RMS and peak measurement.
-- Bounded rolling-window PCM ingestion for streaming playback: chunk append is allocation-free after setup, while snapshots/analysis are restricted to a serialized background worker.
+- Bounded rolling-window PCM ingestion; chunk append is allocation-free after setup.
 - Lightweight 100 Hz energy-onset envelope and autocorrelation BPM estimate (nominal 60–180 BPM range).
-- Coarse first-onset phase estimate.
-- Transition candidate validation against beat confidence and a configurable tempo-ratio bound.
-- Phrase-length overlap calculation and start-point alignment to each track's estimated beat phase.
+- Coarse first-onset phase estimate and transition candidate validation.
+- Phrase-length overlap calculation and beat-phase alignment.
 - Equal-power two-buffer gain rendering.
-- Synthetic 120 BPM fixture and endpoint/phase/policy assertions.
-- GitHub Actions build and CTest workflow.
+- Synthetic 120 BPM fixtures and CMake/CTest CI coverage.
+
+## Alpha/Beta architecture finding
+Static analysis of the supplied Alpha 60.5 and Beta 60.7 binaries is documented in `docs/ALPHA_RENDER_PATH.md`.
+
+- Alpha's audible transition is best evidenced as pre-rendered PCM substitution into the live source pipeline, not two independently audible live player decks.
+- Alpha prepares outgoing and incoming audio, renders transition PCM, arms a source processor, then rejoins ordinary playback.
+- Alpha also contains an external YouTube Music acquisition/cache path. That path is explicitly excluded from this project.
+- Beta lacks Alpha's high-level AutoMix prepare/render/arm exports, but retains lower-level source-processor and read-ahead-related symbols (`SGAudioPipelineSetSourceProcessor`, `SGAudioPipelinePull`, `SGAudioPipelinePullOriginal`, `SGAudioPipelineSourceAheadFrames`, `SGAudioPipelineSourceCanReadAhead`, etc.).
+- These Beta symbols are promising integration leads, not proof that next-track decoded PCM is available early enough or that source-clock rejoin is safe.
 
 ## Known limitations
-This is a DSP prototype, not an Apple Music AutoMix replacement yet:
-- BPM estimates can be ambiguous at half/double tempo; confidence is only a heuristic.
-- The onset envelope is broadband RMS change, not a production spectral-flux beat tracker.
-- First-beat phase is not a downbeat detector; bar-one / phrase-one remains unknown.
+This remains a DSP prototype, not an Apple Music AutoMix replacement:
+- BPM can be ambiguous at half/double tempo; confidence is heuristic.
+- The onset envelope is broadband RMS change, not production spectral flux.
+- First-onset phase is not a downbeat or phrase-one detector.
 - Key, sections, vocal density, stems, and intro/outro detection are not implemented.
-- `incomingPlaybackRate` is a plan value only. No time-stretch engine is implemented.
-- Renderer expects two already-decoded, resampled, synchronised PCM buffers in the same format. It is not a Spotify decoder or dual-player.
-- The streaming analyzer is a rolling PCM prototype, not yet a low-memory multi-feature streaming model; its snapshot analysis allocates and must stay off the real-time callback.
-- No Taurus runtime integration has been made; two-deck source access and scheduling remain unproven.
+- `incomingPlaybackRate` is a plan value only; no time-stretch engine is implemented.
+- The renderer expects two already-decoded, resampled PCM inputs in the same format. It is not a decoder, source scheduler, or Taurus integration.
+- Streaming snapshot analysis allocates and must stay on a serialized background worker, never the real-time callback.
+- No Taurus runtime source-processor adapter has been implemented or device-tested.
 
 ## Next engineering gates
-1. Export the pinned official Beat This! small0 checkpoint and verify parity against upstream; benchmark Core ML feasibility first, with bundled ONNX Runtime/Core ML EP as an alternative. Package a local asset only after parity and device tests. The exact upstream input contract is in `docs/BEAT_THIS_INPUT_CONTRACT.md`. Benchmark inference and memory on the iPhone 16 Pro / iOS 27.2.1. See docs/LOCAL_MODEL.md.
-2. Add multi-band spectral flux, tempo candidates and half/double-time resolution, and benchmark rolling analysis CPU/memory on-device.
-3. Add silence/intro/outro and energy-section analysis with annotated licensed fixtures.
-4. Add a high-quality tempo-preserving time-stretch/resampler and test pitch preservation.
-5. Add a render callback that consumes two independently clocked decks through a bounded, lock-free handoff; test underruns and format changes.
-6. Inspect Taurus playback integration points on-device. Only use PCM the player legitimately exposes and never fetch substitute audio.
-7. Validate on actual supported iOS versions and devices before calling the integration complete.
+1. Establish the exact Beta source-processor contract: callback signature, source lifetime, buffer ownership, frame clock, format, read-ahead semantics, and cancellation behavior.
+2. Verify whether Taurus exposes the next queued track's decoded PCM through its normal streaming path early enough to render a transition locally. Do not fetch substitute audio or use Alpha's YouTube acquisition path.
+3. Implement a Beta-specific adapter that captures bounded PCM off the real-time callback, pre-renders the transition, inserts it at a verified source-clock position, and rejoins the original stream at an exact frame boundary. Always retain a deterministic passthrough fallback.
+4. Export the pinned official Beat This! small0 checkpoint, verify parity with upstream, then evaluate a bundled Core ML model on iPhone 16 Pro / iOS 27.2.1. No playback-time cloud inference or model download.
+5. Improve beat/downbeat, section, intro/outro and energy analysis; add a pitch-preserving time-stretch/resampler.
+6. Test seeks, queue changes, interruptions, route changes, format changes, underruns, memory, thermal behavior and battery on the target device.
 
-A passing CI run validates compilation and the synthetic DSP tests only. It does not validate audio quality or the Taurus/Spotify adapter.
+A passing CI run validates compilation and synthetic DSP tests only. Static IPA analysis is not a runtime/device test. Do not claim the Taurus integration is complete until the Beta source contract and handoff have been verified on-device.
