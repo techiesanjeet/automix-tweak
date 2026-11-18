@@ -1,6 +1,7 @@
 #include "smartmix/SmartMixBridge.h"
 #include "smartmix/SmartMix.hpp"
 #include <algorithm>
+#include <cstdio>
 #include <cstring>
 #include <new>
 
