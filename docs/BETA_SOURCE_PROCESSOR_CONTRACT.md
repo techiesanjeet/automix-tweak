@@ -48,7 +48,19 @@ The registration implementation appears to use **one global callback/context slo
 
 The setter itself checks that the active AudioUnit format is 44.1 kHz and has two channels. The original-pull implementation then validates an AudioBufferList with two buffers, one channel per buffer, non-null data pointers, and at least four bytes per requested frame per buffer. This is consistent with planar Float32 stereo; the ASBD probe must confirm the actual format flags and bit depth before any future PCM interpretation. The setter also waits for an internal render-state flag to clear while holding a control-path mutex, so registration/clear must never run on the render callback.
 
-`SourcePrefix` / `SourceAheadFrames` are **not** treated as a decoded next-track API. `SourceCanReadAhead` only reports source-queue capability. The argument/return semantics and source identity for `SourcePrefix` / `SourceAheadFrames` remain unresolved; the adapter does not call them.
+### Read-ahead and Sing call-site findings
+
+The source-prefix exports have a concrete in-binary call site in `SGSingAudioAttach`:
+
+- `SGAudioPipelineSourceAheadFrames(x)` is a thin wrapper for `SGAudioPipelineSourcePrefix(x, 0)`.
+- `SGAudioPipelineSourcePrefix` resolves the registered source queue associated with the active pipeline context, then forwards the request to `SGAudioSourceQueuePrefix`.
+- The return is consumed as packed 64-bit metadata; the caller reads the high 32 bits as a frame-like prefix value and uses it to reconcile Sing's captured/rendered stream position.
+- In that same `SGSingAudioAttach` path, Taurus obtains the active source format, queries the source prefix, obtains samples through `SGSingStreamCaptured`, and renders them through `SGSingStreamRender`. This is a current-source/Sing capture path, not evidence of an upcoming track's PCM.
+- `SGAudioPipelineSourceCanReadAhead` iterates registered source-queue entries and calls `SGAudioSourceQueueSupported`; unsupported queues may be passed to `SGAudioSourceQueueProbe`. It returns a capability boolean, not an audio buffer or next-track handle.
+- `SGAudioPipelineSetPullProcessor` is a separate single global function-pointer slot. The observed Beta call site installs an internal time-pitch render callback from the Sing attach path. It has no context argument and is not treated as a safe second AutoMix processor slot.
+
+Therefore, the read-ahead symbols should be understood as source-queue/Sing capture metadata unless runtime evidence proves more. They do **not** establish continuous next-track PCM. Do not call them to fetch or decode an incoming song.
+
 
 ## Required contract (must be measured, not guessed)
 
@@ -96,9 +108,9 @@ No analysis, Core ML inference, disk I/O, network access, mutex wait, Objective-
 The incoming track must be made available by Taurus's normal queue/streaming pipeline. A read-ahead API that only exposes the current track cannot supply incoming PCM. Do not obtain incoming audio through Alpha's YouTube Music download/provider path, a duplicate download, or a cloud service. If Beta does not expose incoming decoded PCM early enough, skip the smart transition and let Taurus play normally.
 
 ## Current conclusion
-- Static symbol evidence: promising.
+- Static symbol evidence: a source-processor callback exists, but the examined read-ahead surface is tied to current-source/Sing capture rather than a proven next-track feed.
 - Exact Beta source-processor ABI: callback and pull prototypes inferred from ARM64 disassembly; not runtime-verified.
-- Incoming next-track PCM availability: unknown.
+- Incoming next-track PCM availability: no evidence in the examined Beta source-prefix/Sing path; still unknown elsewhere in the player.
 - Safe frame-clock rejoin: unknown.
 - Single-slot callback ownership/chaining: unresolved; do not install a competing processor.
 - Runtime validation on iPhone 16 Pro / iOS 27.2.1: not performed.
