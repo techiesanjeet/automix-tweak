@@ -73,3 +73,10 @@ or inference request is permitted during playback.
 ## Native frontend parity result
 
 The C++ frontend now matches the pinned upstream torchaudio transform on a deterministic three-second waveform. The parity fixture produced shape `[151, 128]`, maximum absolute error `1.91e-5`, and mean absolute error `1.76e-6`. The implementation uses the upstream Slaney frequency mapping with `norm=None`, frame-length normalization, periodic Hann window, centered reflect padding, and `log1p(1000 * mel)`.
+
+
+## Taurus Beta PCM adaptation
+
+The new `prepareBeatThisMono22050` worker-side adapter accepts the inferred Beta planar Float32 stereo layout as explicit left/right channel pointers, validates finite samples and source rate, downmixes to mono, and uses the bounded windowed-sinc resampler to convert to 22050 Hz. It allocates its result and must only run on a worker thread, never inside the source render callback. Portable tests cover 44.1 kHz stereo input, output sample count, 1 kHz tone preservation, invalid sample rates, and non-finite samples.
+
+This is a format adapter only. It does not capture PCM from Taurus, establish source identity, or expose incoming next-track audio.
