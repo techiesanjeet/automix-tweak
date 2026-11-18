@@ -10,6 +10,7 @@ on:
     paths:
       - "AutoMixEngine.mm"
       - "BeatThisCoreML.mm"
+      - "BetaSourceProcessorProbe.mm"
       - "Makefile"
       - "SmartMixCore/src/**"
       - "SmartMixCore/include/**"
