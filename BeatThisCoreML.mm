@@ -3,6 +3,7 @@
 
 #include "smartmix/BeatThisCoreML.h"
 #include "smartmix/BeatThisSpectrogram.hpp"
+#include "smartmix/BeatThisChunking.hpp"
 
 #include <cmath>
 #include <dlfcn.h>
@@ -180,4 +181,68 @@ extern "C" int SMBeatThisPredictMonoChunk(SMBeatThisModel *model,
     return SMBeatThisPredict(model, paddedSpectrogram.data(),
                              kModelFrames, smartmix::kBeatThisMelBins,
                              beatLogits, downbeatLogits);
+}
+
+extern "C" int SMBeatThisPredictMonoTrack(SMBeatThisModel *model,
+                                           const float *mono22050,
+                                           std::size_t audioFrames,
+                                           float *beatLogits,
+                                           float *downbeatLogits,
+                                           std::size_t outputFrames) {
+    if (!model || !mono22050 || !beatLogits || !downbeatLogits ||
+        outputFrames != smartmix::beatThisSpectrogramFrameCount(audioFrames) ||
+        outputFrames < smartmix::kBeatThisChunkStep ||
+        outputFrames > std::numeric_limits<std::size_t>::max() /
+            smartmix::kBeatThisMelBins) return 0;
+
+    try {
+        std::vector<smartmix::BeatThisChunkSpan> spans;
+        if (!smartmix::makeBeatThisChunkPlan(outputFrames, spans) ||
+            spans.empty() ||
+            spans.size() > std::numeric_limits<std::size_t>::max() /
+                smartmix::kBeatThisModelFrames) return 0;
+
+        std::vector<float> fullSpectrogram(
+            outputFrames * smartmix::kBeatThisMelBins);
+        if (!smartmix::computeBeatThisSpectrogram(
+                mono22050, audioFrames, fullSpectrogram.data(), outputFrames)) {
+            return 0;
+        }
+
+        const std::size_t chunkValueCount =
+            spans.size() * smartmix::kBeatThisModelFrames;
+        std::vector<float> chunkSpectrogram(
+            smartmix::kBeatThisModelFrames * smartmix::kBeatThisMelBins);
+        std::vector<float> chunkBeatLogits(chunkValueCount);
+        std::vector<float> chunkDownbeatLogits(chunkValueCount);
+
+        for (std::size_t i = 0; i < spans.size(); ++i) {
+            if (!smartmix::copyBeatThisSpectrogramChunk(
+                    fullSpectrogram.data(), outputFrames, spans[i],
+                    chunkSpectrogram.data())) return 0;
+            if (!SMBeatThisPredict(
+                    model, chunkSpectrogram.data(),
+                    smartmix::kBeatThisModelFrames,
+                    smartmix::kBeatThisMelBins,
+                    chunkBeatLogits.data() + i * smartmix::kBeatThisModelFrames,
+                    chunkDownbeatLogits.data() + i * smartmix::kBeatThisModelFrames)) {
+                return 0;
+            }
+        }
+
+        std::vector<float> fullBeat(outputFrames);
+        std::vector<float> fullDownbeat(outputFrames);
+        if (!smartmix::aggregateBeatThisChunkLogits(
+                spans, chunkBeatLogits.data(), chunkDownbeatLogits.data(),
+                spans.size(), outputFrames, fullBeat.data(), fullDownbeat.data())) {
+            return 0;
+        }
+
+        std::memcpy(beatLogits, fullBeat.data(), outputFrames * sizeof(float));
+        std::memcpy(downbeatLogits, fullDownbeat.data(),
+                    outputFrames * sizeof(float));
+        return 1;
+    } catch (...) {
+        return 0;
+    }
 }
