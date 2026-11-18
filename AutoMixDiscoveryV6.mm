@@ -2,6 +2,7 @@
 #import <UIKit/UIKit.h>
 #import <objc/runtime.h>
 #import <dispatch/dispatch.h>
+#import <stdlib.h>
 
 static NSString *AMSafe(const char *s) { return s ? [NSString stringWithUTF8String:s] : @""; }
 static BOOL AMHas(NSString *s, NSArray<NSString *> *terms) {
