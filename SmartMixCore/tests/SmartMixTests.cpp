@@ -286,6 +286,13 @@ int main() {
     assert(beatGrid.beatTimesSeconds.size() == 17);
     assert(beatGrid.downbeatTimesSeconds.size() == 5);
     assert(std::abs(beatGrid.downbeatTimesSeconds[1] - 4.0) < 1e-6);
+    std::vector<float> sparseDownbeats(1500, -5.0f);
+    sparseDownbeats[100] = 6.0f;
+    sparseDownbeats[300] = 6.0f;
+    BeatGrid uncertainMeter;
+    assert(postprocessBeatThisLogits(beatLogits.data(), sparseDownbeats.data(),
+                                     1500, 6, 1494, 50.0, uncertainMeter));
+    assert(uncertainMeter.beatsPerBar == 0);
     beatLogits[1200] = std::numeric_limits<float>::quiet_NaN();
     assert(!postprocessBeatThisLogits(beatLogits.data(), downbeatLogits.data(),
                                       1500, 6, 1494, 50.0, beatGrid));
