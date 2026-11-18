@@ -114,10 +114,15 @@ jobs:
       - name: Verify packages and local model bundle
         run: |
           set -euo pipefail
+          brew install dpkg
           for DEB in "$RUNNER_TEMP"/automix-packages/*.deb; do
             test -s "$DEB"
             dpkg-deb --info "$DEB"
-            dpkg-deb --contents "$DEB"
+            CONTENTS="$(dpkg-deb --contents "$DEB")"
+            printf '%s\n' "$CONTENTS"
+            echo "$CONTENTS" | grep -q 'AutoMixEngine.dylib'
+            echo "$CONTENTS" | grep -q 'AutoMixEngine.plist'
+            echo "$CONTENTS" | grep -q 'BeatThisSmall0.mlmodelc'
           done
           DYLIB="$(find . -type f -name 'AutoMixEngine.dylib' -print -quit)"
           BUNDLE="$(find . -type d -name 'SmartMixResources.bundle' -print -quit)"
