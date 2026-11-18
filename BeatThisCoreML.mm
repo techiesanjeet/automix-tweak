@@ -8,6 +8,9 @@
 #include <cmath>
 #include <dlfcn.h>
 #include <cstring>
+#include <cstdint>
+#include <mach-o/getsect.h>
+#include <mach-o/loader.h>
 #include <new>
 #include <vector>
 
@@ -18,6 +21,106 @@ struct SMBeatThisModel {
 namespace {
 constexpr std::size_t kBeatThisFrames = 1500;
 constexpr std::size_t kBeatThisMelBins = 128;
+
+// The model archive is linked into this dylib as __DATA,__smrtmix. Extract it
+// into the app's writable cache on first use; this keeps the injected dylib
+// self-contained and avoids relying on jailbreak-only filesystem locations.
+NSString *extractEmbeddedBeatThisBundle(void) {
+    static NSString *resolvedPath = nil;
+    static dispatch_once_t onceToken;
+    dispatch_once(&onceToken, ^{
+        Dl_info imageInfo = {};
+        if (!dladdr((void *)SMBeatThisCreateInstalled, &imageInfo) ||
+            !imageInfo.dli_fbase) return;
+
+        unsigned long sectionSize = 0;
+        const auto *bytes = reinterpret_cast<const std::uint8_t *>(
+            getsectiondata(
+                reinterpret_cast<const mach_header_64 *>(imageInfo.dli_fbase),
+                "__DATA", "__smrtmix", &sectionSize));
+        if (!bytes || sectionSize < 12 ||
+            std::memcmp(bytes, "SMBNDL01", 8) != 0) return;
+
+        std::size_t offset = 8;
+        std::uint32_t fileCount = 0;
+        std::memcpy(&fileCount, bytes + offset, sizeof(fileCount));
+        offset += sizeof(fileCount);
+        if (fileCount == 0 || fileCount > 4096) return;
+
+        NSArray<NSString *> *cachePaths =
+            NSSearchPathForDirectoriesInDomains(NSCachesDirectory,
+                                                  NSUserDomainMask, YES);
+        NSString *cacheRoot = cachePaths.firstObject;
+        if (!cacheRoot.length) return;
+        NSString *bundlePath =
+            [cacheRoot stringByAppendingPathComponent:@"SmartMixResources.bundle"];
+        NSFileManager *manager = NSFileManager.defaultManager;
+        [manager removeItemAtPath:bundlePath error:nil];
+        if (![manager createDirectoryAtPath:bundlePath
+                withIntermediateDirectories:YES attributes:nil error:nil]) return;
+
+        BOOL valid = YES;
+        for (std::uint32_t i = 0; i < fileCount && valid; ++i) {
+            if (offset > sectionSize || sectionSize - offset < 10) {
+                valid = NO;
+                break;
+            }
+            std::uint16_t nameLength = 0;
+            std::uint64_t dataLength = 0;
+            std::memcpy(&nameLength, bytes + offset, sizeof(nameLength));
+            offset += sizeof(nameLength);
+            std::memcpy(&dataLength, bytes + offset, sizeof(dataLength));
+            offset += sizeof(dataLength);
+            if (nameLength == 0 || nameLength > sectionSize - offset) {
+                valid = NO;
+                break;
+            }
+            NSString *relativePath = [[NSString alloc]
+                initWithBytes:bytes + offset
+                length:nameLength encoding:NSUTF8StringEncoding];
+            offset += nameLength;
+            if (!relativePath.length || [relativePath hasPrefix:@"/"] ||
+                [relativePath containsString:@"\\"] ||
+                [[relativePath pathComponents] containsObject:@".."] ||
+                dataLength > sectionSize - offset ||
+                dataLength > std::numeric_limits<NSUInteger>::max()) {
+                valid = NO;
+                break;
+            }
+
+            NSString *destination =
+                [bundlePath stringByAppendingPathComponent:relativePath];
+            NSString *parent = destination.stringByDeletingLastPathComponent;
+            if (![manager createDirectoryAtPath:parent
+                    withIntermediateDirectories:YES attributes:nil error:nil]) {
+                valid = NO;
+                break;
+            }
+            NSData *payload = [NSData dataWithBytes:bytes + offset
+                                             length:(NSUInteger)dataLength];
+            if (![payload writeToFile:destination options:NSDataWritingAtomic
+                                error:nil]) {
+                valid = NO;
+                break;
+            }
+            offset += (std::size_t)dataLength;
+        }
+
+        NSString *modelPath = [bundlePath
+            stringByAppendingPathComponent:@"BeatThisSmall0.mlmodelc"];
+        BOOL isDirectory = NO;
+        if (valid && offset == sectionSize &&
+            [manager fileExistsAtPath:modelPath isDirectory:&isDirectory] &&
+            isDirectory &&
+            [manager fileExistsAtPath:[bundlePath
+                stringByAppendingPathComponent:@"Info.plist"]]) {
+            resolvedPath = bundlePath;
+        } else {
+            [manager removeItemAtPath:bundlePath error:nil];
+        }
+    });
+    return resolvedPath;
+}
 
 bool copyLogits(MLMultiArray *array, float *destination) {
     if (!array || !destination || array.dataType != MLMultiArrayDataTypeFloat32 ||
@@ -63,6 +166,8 @@ extern "C" SMBeatThisModel *SMBeatThisCreateFromPath(const char *compiledModelPa
 extern "C" SMBeatThisModel *SMBeatThisCreateInstalled(void) {
     @autoreleasepool {
         NSMutableArray<NSString *> *candidates = [NSMutableArray array];
+        NSString *embeddedBundle = extractEmbeddedBeatThisBundle();
+        if (embeddedBundle.length) [candidates addObject:embeddedBundle];
         Dl_info imageInfo = {};
         if (dladdr((void *)SMBeatThisCreateInstalled, &imageInfo) &&
             imageInfo.dli_fname) {
