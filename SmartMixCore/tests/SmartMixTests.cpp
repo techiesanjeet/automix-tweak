@@ -134,6 +134,14 @@ int main() {
     const auto rateAdjustedPlan = planTransition(x, slowerIncoming, 1.1, 8);
     assert(rateAdjustedPlan.valid && rateAdjustedPlan.incomingPlaybackRate > 1.0);
 
+    // Respect the incoming track's trailing silence and reject corrupt metadata.
+    slowerIncoming.outroSeconds = 1.0;
+    slowerIncoming.analysis.durationSeconds = 18.0;
+    assert(!planTransition(x, slowerIncoming, 1.1, 8).valid);
+    slowerIncoming.outroSeconds = 0.0;
+    slowerIncoming.energy = std::numeric_limits<double>::quiet_NaN();
+    assert(!planTransition(x, slowerIncoming, 1.1, 8).valid);
+
     std::cout << "SmartMix DSP tests passed; BPM=" << analysis.bpm
               << " confidence=" << analysis.beatConfidence << "\n";
 }
