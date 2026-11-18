@@ -72,3 +72,13 @@ The incoming track must be made available by Taurus's normal queue/streaming pip
 - Runtime validation on iPhone 16 Pro / iOS 27.2.1: not performed.
 
 Do not claim the Beta adapter is implemented or working until these unknowns are resolved on the actual target build and device.
+
+## Related upstream Taurus implementation evidence (version caveat)
+
+The public Taurus project documentation describes a later Audio/SGAudioPipeline implementation with fixed processor slots, render-thread-safe graph changes, bounded generation-stamped PCM queues, and guarded read-ahead queue metadata. It explicitly distinguishes queue metadata used for read-ahead from PCM delivery: PCM still comes through the AudioUnit. The same documentation describes the Sing source adapter as tracking the audible clock by emitted source samples and retaining a worker/reserve when continuous next-track PCM is verified across a natural transition.
+
+This is valuable architectural evidence that Taurus has used a source-domain PCM pipeline and a continuous-next-track strategy in a later codebase. It strengthens the rationale for investigating the Beta source processor and makes a single-source PCM insertion adapter a plausible design.
+
+It does NOT establish that the supplied 0.60.7 Beta binary has the same implementation, exact ABI, queue semantics, or continuous-next-track behavior. The public project documentation describes a later source tree and a different target Spotify build. Do not copy undocumented prototypes or assume binary compatibility. The exact Beta runtime contract and iPhone 16 Pro validation remain required.
+
+Reference: https://github.com/samj-exe/taurus/blob/stable/docs/tweaks.md (Audio and Sing sections).
