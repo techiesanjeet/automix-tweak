@@ -27,6 +27,7 @@
 - Equal-power two-buffer gain rendering.
 - Worker-side 32-tap windowed-sinc sample-rate conversion and varispeed; this changes pitch and is not pitch-preserving time stretch.
 - Local Beat This log-mel preprocessing, beat/downbeat logit postprocessing, and conservative 3/4 or 4/4 meter inference.
+- Beta 0.60.7 source processor callback ABI is inferred from ARM64 disassembly; the non-invasive runtime probe reports source format and read-ahead capability without registering a processor.
 - Objective-C++ Core ML adapter loads the compiled model locally, accepts mono 22050 Hz chunks through the native spectrogram frontend, and passes beat/downbeat logits through the C bridge into meter-aware planning.
 - Planner can align both transition ends to model-derived downbeats when both tracks have reliable, matching meter; it falls back to beat-phase alignment otherwise and skips known meter mismatches.
 - Fixed-capacity `PreparedPCMSubstitution` slot: worker-side preparation, lock-free state publication, exact source-epoch/frame scheduling, bounded callback memcpy, deterministic original-stream rejoin, and cancellation on discontinuity.
