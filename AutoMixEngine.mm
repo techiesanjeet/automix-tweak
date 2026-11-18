@@ -6,6 +6,8 @@
 #include "smartmix/BeatThisCoreML.h"
 #include "smartmix/BetaSourceProcessorProbe.h"
 #include "smartmix/BeatThisSpectrogram.hpp"
+#include "smartmix/BeatThisChunking.hpp"
+#include <algorithm>
 #include <chrono>
 #include <cmath>
 #include <vector>
@@ -37,7 +39,8 @@ static NSString *AMBuildReport(void) {
     NSArray<NSString *> *symbols = @[
         @"SMAnalyzePCM", @"SMCreateStreamingAnalyzer", @"SMAppendPCM",
         @"SMAnalyzeLatest", @"SMPlanTransition", @"SMRenderEqualPower",
-        @"SMBeatThisPredictMonoChunk", @"SMApplyBeatThisLogitsToTrack",
+        @"SMBeatThisPredictMonoChunk", @"SMBeatThisPredictMonoTrack",
+        @"SMApplyBeatThisLogitsToTrack",
         @"SMBetaPipelineInspect",
         @"SGAudioPipelineAvailable", @"SGAudioPipelineTapped",
         @"SGAudioPipelineSetSourceProcessor", @"SGAudioPipelinePull",
@@ -94,11 +97,13 @@ static NSString *AMBuildReport(void) {
             message = @"The local Beat This Core ML bundle could not be loaded. "
                        "Check that SmartMixResources.bundle is installed beside the tweak resources.";
         } else {
-            constexpr std::size_t modelFrames = 1500;
-            constexpr std::size_t borderFrames = 6;
             constexpr std::size_t audioFrames =
-                (modelFrames - 2 * borderFrames - 1) *
-                smartmix::kBeatThisHopLength;
+                60 * static_cast<std::size_t>(smartmix::kBeatThisSampleRate);
+            const std::size_t modelFrames =
+                smartmix::beatThisSpectrogramFrameCount(audioFrames);
+            std::vector<smartmix::BeatThisChunkSpan> chunks;
+            const bool chunkPlanReady =
+                smartmix::makeBeatThisChunkPlan(modelFrames, chunks);
             std::vector<float> mono(audioFrames);
             std::vector<float> beat(modelFrames, 0.0f);
             std::vector<float> downbeat(modelFrames, 0.0f);
@@ -108,18 +113,27 @@ static NSString *AMBuildReport(void) {
                 mono[i] = static_cast<float>(0.15 * std::sin(
                     2.0 * 3.141592653589793 * 220.0 * time));
             }
-            const int success = SMBeatThisPredictMonoChunk(
-                model, mono.data(), mono.size(), borderFrames, borderFrames,
-                beat.data(), downbeat.data());
+            const int success = chunkPlanReady
+                ? SMBeatThisPredictMonoTrack(
+                    model, mono.data(), mono.size(), beat.data(),
+                    downbeat.data(), modelFrames)
+                : 0;
+            const bool finiteOutput = success &&
+                std::all_of(beat.begin(), beat.end(),
+                    [](float value) { return std::isfinite(value); }) &&
+                std::all_of(downbeat.begin(), downbeat.end(),
+                    [](float value) { return std::isfinite(value); });
             SMBeatThisDestroy(model);
             const double elapsed = 1000.0 * std::chrono::duration<double>(
                 std::chrono::steady_clock::now() - started).count();
-            message = success
+            message = finiteOutput
                 ? [NSString stringWithFormat:
-                    @"Local model loaded and ran the full native log-mel + Core ML path "
-                     "on a synthetic 220 Hz test signal.\nLoad + frontend + inference: %.1f ms.\n"
-                     "No Taurus audio was read or changed.", elapsed]
-                : @"The model loaded, but the full local frontend/inference self-test failed.";
+                    @"Local model completed full-track chunked inference on a synthetic "
+                     "60-second 220 Hz signal (%zu model windows, %zu frame logits).\n"
+                     "Load + frontend + inference: %.1f ms.\n"
+                     "No Taurus audio was read or changed.",
+                    chunks.size(), modelFrames, elapsed]
+                : @"The model loaded, but full-track chunked inference or finite-logit validation failed.";
         }
 
         dispatch_async(dispatch_get_main_queue(), ^{
