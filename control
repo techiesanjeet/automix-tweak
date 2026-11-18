@@ -1,0 +1,9 @@
+Package: com.techiesanjeet.automix-tweak
+Name: Taurus SmartMix Diagnostics
+Version: 0.1.0
+Architecture: iphoneos-arm64
+Description: Local Beat This model and SmartMix diagnostics for Taurus. Live audio mixing is disabled pending source-pipeline validation.
+Maintainer: AutoMix Tweak Contributors
+Author: AutoMix Tweak Contributors
+Section: Tweaks
+Depends: mobilesubstrate | ellekit
