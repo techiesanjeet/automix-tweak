@@ -30,6 +30,12 @@ jobs:
       - name: Check out source
         uses: actions/checkout@v4
 
+      - name: Cache Theos and SDKs
+        uses: actions/cache@v4
+        with:
+          path: theos
+          key: ${{ runner.os }}-theos-sdk-master-v1
+
       - name: Install Theos and iOS SDKs
         uses: Randomblock1/theos-action@v1
 
