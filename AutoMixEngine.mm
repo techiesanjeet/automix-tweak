@@ -2,6 +2,10 @@
 #import <Foundation/Foundation.h>
 #import <dlfcn.h>
 
+#include "smartmix/BeatThisCoreML.h"
+#include <chrono>
+#include <vector>
+
 // SmartMix is deliberately playback-neutral until the Taurus Beta source
 // processor ABI, incoming PCM availability, and source-frame rejoin are
 // verified on the target device. Never fake a two-track mix by fading the
@@ -18,6 +22,7 @@ static NSString *AMBuildReport(void) {
          "Bundle: %@\nVersion: %@ (%@)\niOS: %@\nDevice: %@\n\n"
          "Playback safety: passthrough only; this build does not alter audio.\n"
          "Analysis: local SmartMix C++ core is linked into this dylib.\n"
+         "Beat This: bundled Core ML adapter is available for local self-test.\n"
          "Cloud analysis / substitute downloads: not used.\n\n",
         bundle.bundleIdentifier ?: @"unknown",
         bundle.infoDictionary[@"CFBundleShortVersionString"] ?: @"unknown",
@@ -72,6 +77,46 @@ static NSString *AMBuildReport(void) {
     return UIApplication.sharedApplication.windows.firstObject;
 }
 
+- (void)runLocalModelSelfTestFrom:(UIViewController *)controller {
+    __weak UIViewController *weakController = controller;
+    dispatch_async(dispatch_get_global_queue(QOS_CLASS_USER_INITIATED, 0), ^{
+        const auto started = std::chrono::steady_clock::now();
+        SMBeatThisModel *model = SMBeatThisCreateInstalled();
+        NSString *message = nil;
+        if (!model) {
+            message = @"The local Beat This Core ML bundle could not be loaded. "
+                       "Check that SmartMixResources.bundle is installed beside the tweak resources.";
+        } else {
+            std::vector<float> spectrogram(1500 * 128, 0.0f);
+            std::vector<float> beat(1500, 0.0f);
+            std::vector<float> downbeat(1500, 0.0f);
+            const int success = SMBeatThisPredict(
+                model, spectrogram.data(), 1500, 128, beat.data(), downbeat.data());
+            SMBeatThisDestroy(model);
+            const double elapsed = std::chrono::duration<double, std::milli>(
+                std::chrono::steady_clock::now() - started).count();
+            message = success
+                ? [NSString stringWithFormat:
+                    @"Local model loaded and inferred successfully on synthetic silence.\n"
+                     "Inference + load: %.1f ms.\n"
+                     "No Taurus audio was read or changed.", elapsed]
+                : @"The model loaded, but the local inference self-test failed.";
+        }
+
+        dispatch_async(dispatch_get_main_queue(), ^{
+            UIViewController *presenter = weakController;
+            if (!presenter) return;
+            UIAlertController *result = [UIAlertController
+                alertControllerWithTitle:@"Local Beat This self-test"
+                message:message
+                preferredStyle:UIAlertControllerStyleAlert];
+            [result addAction:[UIAlertAction actionWithTitle:@"Close"
+                style:UIAlertActionStyleCancel handler:nil]];
+            [presenter presentViewController:result animated:YES completion:nil];
+        });
+    });
+}
+
 - (void)showStatus {
     UIWindow *window = [self activeWindow];
     UIViewController *controller = window.rootViewController;
@@ -87,6 +132,10 @@ static NSString *AMBuildReport(void) {
     [alert addAction:[UIAlertAction actionWithTitle:@"Copy diagnostics"
         style:UIAlertActionStyleDefault handler:^(__unused UIAlertAction *action) {
             UIPasteboard.generalPasteboard.string = report;
+        }]];
+    [alert addAction:[UIAlertAction actionWithTitle:@"Test local model"
+        style:UIAlertActionStyleDefault handler:^(__unused UIAlertAction *action) {
+            [self runLocalModelSelfTestFrom:controller];
         }]];
     [alert addAction:[UIAlertAction actionWithTitle:@"Close"
         style:UIAlertActionStyleCancel handler:nil]];
