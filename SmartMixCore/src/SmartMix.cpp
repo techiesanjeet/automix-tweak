@@ -258,11 +258,21 @@ Plan planTransition(const Track& outgoing, const Track& incoming,
         plan.reason = "audio analysis unavailable";
         return plan;
     }
-    if (outgoing.analysis.bpm <= 0.0 || incoming.analysis.bpm <= 0.0 ||
-        outgoing.analysis.beatConfidence < 0.08 || incoming.analysis.beatConfidence < 0.08 ||
-        outgoing.analysis.beatPeriodSeconds <= 0.0 ||
-        incoming.analysis.beatPeriodSeconds <= 0.0) {
-        plan.reason = "beat grid confidence too low";
+    const auto validTrack = [](const Track& track) {
+        const Analysis& analysis = track.analysis;
+        return std::isfinite(analysis.bpm) && std::isfinite(analysis.beatPeriodSeconds) &&
+            std::isfinite(analysis.firstBeatSeconds) && std::isfinite(analysis.beatConfidence) &&
+            std::isfinite(analysis.durationSeconds) && std::isfinite(track.introSeconds) &&
+            std::isfinite(track.outroSeconds) && std::isfinite(track.energy) &&
+            analysis.bpm > 0.0 && analysis.beatPeriodSeconds > 0.0 &&
+            analysis.durationSeconds > 0.0 && analysis.firstBeatSeconds >= 0.0 &&
+            analysis.firstBeatSeconds < analysis.durationSeconds &&
+            analysis.beatConfidence >= 0.08 && analysis.beatConfidence <= 1.0 &&
+            track.introSeconds >= 0.0 && track.outroSeconds >= 0.0 &&
+            track.energy >= 0.0 && track.energy <= 1.0;
+    };
+    if (!validTrack(outgoing) || !validTrack(incoming)) {
+        plan.reason = "invalid track analysis or metadata";
         return plan;
     }
 
@@ -296,7 +306,7 @@ Plan planTransition(const Track& outgoing, const Track& incoming,
     if (plan.startOutgoingSeconds + plan.durationSeconds >
             outgoing.analysis.durationSeconds - std::max(0.0, outgoing.outroSeconds) + 1e-6 ||
         plan.startIncomingSeconds + plan.durationSeconds * plan.incomingPlaybackRate >
-            incoming.analysis.durationSeconds) {
+            incoming.analysis.durationSeconds - incoming.outroSeconds + 1e-6) {
         plan.reason = "not enough prepared audio";
         return plan;
     }
