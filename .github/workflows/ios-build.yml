@@ -10,10 +10,9 @@ on:
     paths:
       - "AutoMixEngine.mm"
       - "BeatThisCoreML.mm"
-      - "fishhook.c"
-      - "fishhook.h"
       - "Makefile"
-      - "SmartMixCore/**"
+      - "SmartMixCore/src/**"
+      - "SmartMixCore/include/**"
   workflow_dispatch:
 
 permissions:
