@@ -9,7 +9,7 @@
 - Added a macOS 15 / Theos arm64 build workflow that installs Theos + iOS SDKs, compiles the dylib, verifies its architecture, and uploads the artifact.
 - Removed the old `AudioUnitRender` fade-only hook from the active engine. That hook only attenuated the current song, used unsynchronized shared state, and was not a real two-track AutoMix transition.
 - The current UI is an honest status/diagnostic surface. It reports that playback integration is pending and does not alter Taurus audio.
-- The default-branch diagnostic snapshot has completed a successful Theos arm64 build and artifact upload. Subsequent feature-branch DSP changes are being rebuilt separately; each commit's CI result is tracked before calling it validated.
+- The default-branch diagnostic snapshot completed a successful Theos arm64 build and artifact upload. Feature-branch spectral-flux DSP plus the C++17 Theos flag fix also completed a successful Theos arm64 build and artifact upload at commit `a0688de`; the newer prepared-PCM slot changes are in CI now.
 - This is still a safe diagnostic build target, **not a functioning AutoMix release**. The runtime source contract remains unverified.
 
 ## Implemented and CI-verified
@@ -38,8 +38,7 @@ Static analysis of the supplied Alpha 60.5 and Beta 60.7 binaries is documented 
 ## Known limitations
 This remains a DSP prototype, not an Apple Music AutoMix replacement:
 - BPM can be ambiguous at half/double tempo; confidence is heuristic.
-- The onset envelope is broadband RMS change, not production spectral flux.
-- First-onset phase is not a downbeat or phrase-one detector.
+- Spectral-flux tempo/phase estimates are still heuristic; the phase is not a downbeat or phrase-one detector.
 - Key, sections, vocal density, stems, and intro/outro detection are not implemented.
 - `incomingPlaybackRate` is a plan value only; no time-stretch engine is implemented.
 - The renderer expects two already-decoded, resampled PCM inputs in the same format. `PreparedPCMSubstitution` can substitute a pre-rendered buffer at an explicit host source-frame interval, but it is not connected to Taurus and cannot obtain incoming PCM by itself.
