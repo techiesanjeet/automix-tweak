@@ -31,9 +31,16 @@ double melToHz(double mel) {
                             : fSp * mel;
 }
 
-const std::array<double, kBeatThisMelBins * kBins>& melFilterBank() {
+struct MelFilterBank {
+    std::array<double, kBeatThisMelBins * kBins> weights{};
+    std::array<std::uint16_t, kBeatThisMelBins> firstBin{};
+    std::array<std::uint16_t, kBeatThisMelBins> endBin{};
+};
+
+const MelFilterBank& melFilterBank() {
     static const auto filters = [] {
-        std::array<double, kBeatThisMelBins * kBins> result{};
+        MelFilterBank result;
+        result.firstBin.fill(static_cast<std::uint16_t>(kBins));
         std::array<double, kMelPoints> points{};
         const double minMel = hzToMel(30.0);
         const double maxMel = hzToMel(11000.0);
@@ -50,8 +57,13 @@ const std::array<double, kBeatThisMelBins * kBins>& melFilterBank() {
                     kBeatThisSampleRate / static_cast<double>(kBeatThisFFTSize);
                 const double lower = (frequency - points[mel]) / lowerWidth;
                 const double upper = (points[mel + 2] - frequency) / upperWidth;
-                result[mel * kBins + bin] =
-                    std::max(0.0, std::min(lower, upper));
+                const double weight = std::max(0.0, std::min(lower, upper));
+                result.weights[mel * kBins + bin] = weight;
+                if (weight > 0.0) {
+                    result.firstBin[mel] = std::min(
+                        result.firstBin[mel], static_cast<std::uint16_t>(bin));
+                    result.endBin[mel] = static_cast<std::uint16_t>(bin + 1);
+                }
             }
         }
         return result;
@@ -140,8 +152,9 @@ bool computeBeatThisSpectrogram(const float* input, std::size_t inputFrames,
         for (std::size_t mel = 0; mel < kBeatThisMelBins; ++mel) {
             double melEnergy = 0.0;
             const std::size_t filterOffset = mel * kBins;
-            for (std::size_t bin = 0; bin < kBins; ++bin) {
-                melEnergy += magnitudes[bin] * filters[filterOffset + bin];
+            for (std::size_t bin = filters.firstBin[mel];
+                 bin < filters.endBin[mel]; ++bin) {
+                melEnergy += magnitudes[bin] * filters.weights[filterOffset + bin];
             }
             output[frame * kBeatThisMelBins + mel] =
                 static_cast<float>(std::log1p(1000.0 * melEnergy));
