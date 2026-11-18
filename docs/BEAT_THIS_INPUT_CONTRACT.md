@@ -27,8 +27,13 @@ vDSP/Accelerate mel pipeline without parity tests is not acceptable.
   upstream loader reconstructs the model from checkpoint hyperparameters and
   strips the `model.` state-dict prefix.
 - Upstream frame inference uses 1,500-frame chunks with a six-frame border
-  discarded on each side. Chunks overlap so their interior predictions can
-  be stitched without using edge predictions.
+  discarded on each side. The next chunk advances by 1,488 frames. The final
+  chunk is shifted left to end at the track boundary, and overlapping logits
+  are merged with `keep_first` (earlier chunks overwrite later ones).
+- The Core ML trace has a fixed `[1, 1500, 128]` input. The native full-track
+  adapter therefore requires at least 1,488 spectrogram frames (about 29.76 s);
+  shorter clips use the lightweight DSP fallback rather than inventing a
+  different model shape.
 - The model predicts beat and downbeat activations. It does not predict
   musical key, vocals, stems, song sections, transition points, or mix effects.
 
@@ -48,12 +53,15 @@ or inference request is permitted during playback.
    20 ms frame convention and explicit output names for beat/downbeat logits.
 3. Compare converted logits against upstream PyTorch on fixed licensed audio
    fixtures. Record max/mean absolute error and beat/downbeat event agreement.
-4. Test long-file chunk boundaries and overlap stitching against upstream.
-5. Benchmark Core ML on the iPhone 16 Pro. If Core ML conversion fails or is
-   slower/too memory hungry, evaluate a bundled ONNX Runtime/Core ML execution
-   path. Do not silently switch model formats without parity evidence.
-6. Bundle the model and runtime in the tweak package. Runtime loading must use
-   a local filesystem/resource path only.
+4. Implemented and tested long-file chunk boundaries and `keep_first` overlap
+   stitching against the pinned upstream algorithm. The native adapter computes
+   the full log-mel spectrogram once, then invokes the fixed-shape Core ML model
+   sequentially for each 1,500-frame chunk on a worker.
+5. Benchmark Core ML on the iPhone 16 Pro. If Core ML conversion is too slow or
+   memory hungry, evaluate a bundled ONNX Runtime/Core ML path. Do not silently
+   switch model formats without parity evidence.
+6. Completed: the `.mlmodelc` resource is bundled in both rootful and rootless
+   Theos packages. Runtime loading uses only local bundle/filesystem paths.
 
 ## Source references
 
@@ -67,7 +75,7 @@ or inference request is permitted during playback.
 - Exporter: `tools/export_beat_this_coreml.py`.
 - Build-time workflow: `.github/workflows/beat-this-coreml.yml`.
 - The workflow checks out the pinned upstream source, downloads the official checkpoint only during CI, converts a fixed 1500-frame model, and requires CPU Core ML/PyTorch logit parity before uploading the `.mlpackage` artifact.
-- This artifact is not yet bundled into the tweak or loaded by the iOS runtime. The runtime must use a local bundled path only.
+- The compiled `.mlmodelc` is now staged in `SmartMixResources.bundle` and included in both rootful and rootless diagnostic packages. The runtime loader resolves only local resource paths; no model download fallback is present. Full-track inference is implemented but has not yet been benchmarked on the iPhone.
 
 
 ## Native frontend parity result
@@ -80,3 +88,17 @@ The C++ frontend now matches the pinned upstream torchaudio transform on a deter
 The new `prepareBeatThisMono22050` worker-side adapter accepts the inferred Beta planar Float32 stereo layout as explicit left/right channel pointers, validates finite samples and source rate, downmixes to mono, and uses the bounded windowed-sinc resampler to convert to 22050 Hz. It allocates its result and must only run on a worker thread, never inside the source render callback. Portable tests cover 44.1 kHz stereo input, output sample count, 1 kHz tone preservation, invalid sample rates, and non-finite samples.
 
 This is a format adapter only. It does not capture PCM from Taurus, establish source identity, or expose incoming next-track audio.
+
+
+## Full-track inference and chunk stitching
+
+The pinned upstream `inference.py` uses `split_piece(chunk_size=1500, border_size=6, avoid_short_end=True)`, then aggregates the logits with `overlap_mode="keep_first"`. The native `BeatThisChunking` helper mirrors those start positions, edge padding, shifted final chunk, valid prediction ranges, and reverse-order overwrite semantics. The implementation is pinned to the same upstream commit listed above.
+
+- `makeBeatThisChunkPlan` produces the source and destination ranges for each 1,500-frame window.
+- `copyBeatThisSpectrogramChunk` copies each time-major log-mel window into a fixed 1,500 × 128 input with the six-frame zero border.
+- `aggregateBeatThisChunkLogits` removes edge predictions, merges overlapping chunks with earlier chunks taking precedence, and verifies complete frame coverage.
+- `SMBeatThisPredictMonoTrack` computes the full-track spectrogram, runs one Core ML prediction at a time, stitches beat/downbeat logits, and only then copies complete results to the caller.
+- The API is worker-thread only. It performs allocations and sequential Core ML inference; it must never run on the real-time audio callback.
+- Tracks shorter than 1,488 spectrogram frames (about 29.76 seconds) are rejected by the fixed-shape Core ML adapter and should use the lightweight DSP fallback.
+
+Portable tests cover 1,488-frame single-chunk input, shifted final chunk starts, 3,000-frame overlap precedence, 10,000-frame coverage, zero padding, and rejection of non-finite logits. C++ CI passes these tests. Actual Core ML execution and performance on the target iPhone remain pending.
