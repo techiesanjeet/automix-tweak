@@ -3,7 +3,7 @@ ARCHS = arm64
 
 LIBRARY_NAME = AutoMixEngine
 
-AutoMixEngine_FILES = AutoMixEngine.mm SmartMixCore/src/SmartMix.cpp SmartMixCore/src/SmartMixBridge.cpp SmartMixCore/src/PreparedPCM.cpp SmartMixCore/src/Resampler.cpp BeatThisCoreML.mm
+AutoMixEngine_FILES = AutoMixEngine.mm SmartMixCore/src/SmartMix.cpp SmartMixCore/src/SmartMixBridge.cpp SmartMixCore/src/PreparedPCM.cpp SmartMixCore/src/Resampler.cpp SmartMixCore/src/BeatThisSpectrogram.cpp BeatThisCoreML.mm
 AutoMixEngine_CFLAGS = -fobjc-arc -I$(THEOS_PROJECT_DIR)/SmartMixCore/include
 AutoMixEngine_CCFLAGS = -std=c++17 -I$(THEOS_PROJECT_DIR)/SmartMixCore/include
 AutoMixEngine_FRAMEWORKS = UIKit Foundation CoreML Accelerate
