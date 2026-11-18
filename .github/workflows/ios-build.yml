@@ -12,6 +12,7 @@ on:
       - "BeatThisCoreML.mm"
       - "BetaSourceProcessorProbe.mm"
       - "Makefile"
+      - ".github/workflows/ios-build.yml"
       - "control"
       - "layout/**"
       - "SmartMixCore/src/**"
