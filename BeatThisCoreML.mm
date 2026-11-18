@@ -2,11 +2,13 @@
 #import <Foundation/Foundation.h>
 
 #include "smartmix/BeatThisCoreML.h"
+#include "smartmix/BeatThisSpectrogram.hpp"
 
 #include <cmath>
 #include <dlfcn.h>
 #include <cstring>
 #include <new>
+#include <vector>
 
 struct SMBeatThisModel {
     void *model;
@@ -151,4 +153,31 @@ extern "C" int SMBeatThisPredict(SMBeatThisModel *model,
         }
     }
     return 0;
+}
+
+extern "C" int SMBeatThisPredictMonoChunk(SMBeatThisModel *model,
+                                           const float *mono22050,
+                                           std::size_t audioFrames,
+                                           std::size_t leftPadFrames,
+                                           std::size_t rightPadFrames,
+                                           float *beatLogits,
+                                           float *downbeatLogits) {
+    constexpr std::size_t kBorder = 6;
+    constexpr std::size_t kModelFrames = 1500;
+    if (!model || !mono22050 || !beatLogits || !downbeatLogits ||
+        leftPadFrames > kBorder || rightPadFrames > kBorder ||
+        leftPadFrames + rightPadFrames >= kModelFrames) return 0;
+
+    const std::size_t melFrames = kModelFrames - leftPadFrames - rightPadFrames;
+    if (smartmix::beatThisSpectrogramFrameCount(audioFrames) != melFrames) return 0;
+
+    std::vector<float> paddedSpectrogram(kModelFrames * smartmix::kBeatThisMelBins, 0.0f);
+    float *melDestination = paddedSpectrogram.data() +
+        leftPadFrames * smartmix::kBeatThisMelBins;
+    if (!smartmix::computeBeatThisSpectrogram(
+            mono22050, audioFrames, melDestination, melFrames)) return 0;
+
+    return SMBeatThisPredict(model, paddedSpectrogram.data(),
+                             kModelFrames, smartmix::kBeatThisMelBins,
+                             beatLogits, downbeatLogits);
 }
