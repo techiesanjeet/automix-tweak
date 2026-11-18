@@ -295,7 +295,8 @@ Plan planTransition(const Track& outgoing, const Track& incoming,
         incoming.analysis.firstBeatSeconds, incomingBeat);
     if (plan.startOutgoingSeconds + plan.durationSeconds >
             outgoing.analysis.durationSeconds - std::max(0.0, outgoing.outroSeconds) + 1e-6 ||
-        plan.startIncomingSeconds + plan.durationSeconds > incoming.analysis.durationSeconds) {
+        plan.startIncomingSeconds + plan.durationSeconds * plan.incomingPlaybackRate >
+            incoming.analysis.durationSeconds) {
         plan.reason = "not enough prepared audio";
         return plan;
     }
