@@ -12,6 +12,8 @@ on:
       - "BeatThisCoreML.mm"
       - "BetaSourceProcessorProbe.mm"
       - "Makefile"
+      - "control"
+      - "layout/**"
       - "SmartMixCore/src/**"
       - "SmartMixCore/include/**"
   workflow_dispatch:
