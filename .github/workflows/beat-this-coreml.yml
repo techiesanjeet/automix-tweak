@@ -4,6 +4,9 @@ on:
   push:
     paths:
       - "tools/export_beat_this_coreml.py"
+      - "tools/beat_this_spectrogram_cli.cpp"
+      - "tools/verify_beat_this_spectrogram.py"
+      - "SmartMixCore/src/BeatThisSpectrogram.cpp"
       - ".github/workflows/beat-this-coreml.yml"
       - "docs/BEAT_THIS_INPUT_CONTRACT.md"
   workflow_dispatch:
@@ -33,6 +36,12 @@ jobs:
         run: |
           python -m pip install --upgrade pip
           python -m pip install "numpy<2" "torch==2.5.0" "torchaudio==2.5.0" "coremltools==8.3.0" einops rotary-embedding-torch soxr
+
+      - name: Verify C++ log-mel preprocessing against upstream
+        env:
+          PYTHONPATH: beat_this_upstream
+        run: |
+          python tools/verify_beat_this_spectrogram.py
 
       - name: Download official small0 checkpoint for build-time conversion
         run: |
