@@ -1,4 +1,8 @@
 name: SmartMix core tests
+
+concurrency:
+  group: smartmix-tests-${{ github.ref }}
+  cancel-in-progress: true
 on:
   push:
     paths: ["SmartMixCore/**", "CMakeLists.txt"]
