@@ -23,15 +23,14 @@ bool makeBeatThisChunkPlan(std::size_t fullFrameCount,
     const auto chunkSize = static_cast<std::int64_t>(kBeatThisModelFrames);
     const auto step = static_cast<std::int64_t>(kBeatThisChunkStep);
     std::vector<std::int64_t> starts;
-    for (std::int64_t start = -border; start < total - border; start += step) {
-        starts.push_back(start);
-    }
-    if (starts.empty()) return false;
-    if (fullFrameCount > kBeatThisChunkStep) {
-        starts.back() = total - (chunkSize - border);
-    }
-
     try {
+        for (std::int64_t start = -border; start < total - border; start += step) {
+            starts.push_back(start);
+        }
+        if (starts.empty()) return false;
+        if (fullFrameCount > kBeatThisChunkStep) {
+            starts.back() = total - (chunkSize - border);
+        }
         spans.reserve(starts.size());
         for (const std::int64_t start : starts) {
             const std::int64_t end = start + chunkSize;
