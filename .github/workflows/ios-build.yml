@@ -9,15 +9,6 @@ on:
       - "fishhook.h"
       - "Makefile"
       - "SmartMixCore/**"
-      - ".github/workflows/ios-build.yml"
-  pull_request:
-    paths:
-      - "AutoMixEngine.mm"
-      - "fishhook.c"
-      - "fishhook.h"
-      - "Makefile"
-      - "SmartMixCore/**"
-      - ".github/workflows/ios-build.yml"
   workflow_dispatch:
 
 permissions:
