@@ -48,7 +48,7 @@ V2 makes the two-deck requirement explicit and applies complementary equal-power
 
 Treat V2 as a DSP experiment, not proof of a usable Spotify dual-deck API.
 
-## Proposed architecture
+## Current integration progress\n\nThe portable core and its C ABI bridge are now included in the Theos dylib source list. The bridge is callable by a future Objective-C++ adapter and is covered by the CMake test target. This is build integration only: the existing `AutoMixEngine.mm` does not yet call the bridge, does not tap Taurus decoded PCM, and does not obtain or schedule a second deck. No live playback path is enabled by this change.\n\n## Proposed architecture
 
     SmartMixCore/
       Audio/       PCMBuffer, AudioFormat
