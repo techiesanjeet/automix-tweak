@@ -48,6 +48,13 @@ int SMAppendPCM(void *analyzer, const float *samples, uint64_t frames,
 int SMAnalyzeLatest(void *analyzer, SMAnalysis *result);
 double SMObservedSeconds(void *analyzer);
 void SMDestroyStreamingAnalyzer(void *analyzer);
+int SMApplyBeatThisLogitsToTrack(const float *beatLogits,
+                                 const float *downbeatLogits,
+                                 uint64_t frameCount,
+                                 uint64_t validStartFrame,
+                                 uint64_t validEndFrame,
+                                 double frameRate,
+                                 SMTrack *track);
 int SMPlanTransition(const SMTrack *outgoing, const SMTrack *incoming,
                      double maxTempoRatio, unsigned bars, SMPlan *result);
 void SMRenderEqualPower(const float *outgoing, const float *incoming,
