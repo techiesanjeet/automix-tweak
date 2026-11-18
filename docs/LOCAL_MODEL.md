@@ -8,7 +8,7 @@ Use the official CPJKU Beat This! small0 checkpoint as the first on-device ML co
 - Paper: https://arxiv.org/abs/2407.21658
 - License and model inventory: https://github.com/CPJKU/beat_this#available-models
 
-## Why this model first
+See `docs/BEAT_THIS_INPUT_CONTRACT.md` for the pinned upstream revision, exact audio/spectrogram settings, chunking, and strict local-loader rules. The official inference loader can download a missing named checkpoint; the iOS adapter must pass a bundled local path and must not call the network-capable fallback.\n\nCore ML conversion is a feasibility gate, not an assumption: the upstream network uses rotary embeddings, partial time/frequency transformers, and scaled dot-product attention. Test conversion and parity before choosing Core ML. If it is unsuitable, benchmark a bundled ONNX Runtime path with a Core ML execution provider. Neither runtime may fetch model assets during playback.\n\n## Why this model first
 
 - Beat and downbeat predictions are more useful for musical phrase alignment than the current RMS-envelope autocorrelation prototype.
 - The small checkpoint is a practical first asset for an iOS tweak; the full checkpoint is substantially larger.
