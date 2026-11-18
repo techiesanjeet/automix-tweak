@@ -32,7 +32,7 @@ jobs:
       - name: Install conversion dependencies
         run: |
           python -m pip install --upgrade pip
-          python -m pip install "numpy<2" "torch==2.5.1" "torchaudio==2.5.1" "coremltools==8.3.0" einops rotary-embedding-torch soxr
+          python -m pip install "numpy<2" "torch==2.5.0" "torchaudio==2.5.0" "coremltools==8.3.0" einops rotary-embedding-torch soxr
 
       - name: Download official small0 checkpoint for build-time conversion
         run: |
@@ -44,10 +44,11 @@ jobs:
 
       - name: Convert and verify PyTorch/Core ML parity
         env:
-          PYTHONPATH: \${{ github.workspace }}/beat_this_upstream
+          PYTHONPATH: beat_this_upstream
         run: |
           python tools/export_beat_this_coreml.py \
             --checkpoint model-build/small0.ckpt \
+            --expected-sha256 6074be2c4d490c5f6101fcc374a1ec72ae93456e23bb6019783b849f5dc7d47b \
             --output model-build/BeatThisSmall0.mlpackage
 
       - name: Package Core ML model
