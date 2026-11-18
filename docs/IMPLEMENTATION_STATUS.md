@@ -4,6 +4,13 @@
 - Primary validation target: iPhone 16 Pro running iOS 27.2.1. This is a test target, not a minimum deployment target.
 - Theos deployment target remains iOS 14.0 until compatibility is measured.
 
+## Latest build-preparation changes
+
+- Added a macOS 15 / Theos arm64 build workflow that installs Theos + iOS SDKs, compiles the dylib, verifies its architecture, and uploads the artifact.
+- Removed the old `AudioUnitRender` fade-only hook from the active engine. That hook only attenuated the current song, used unsynchronized shared state, and was not a real two-track AutoMix transition.
+- The current UI is now an honest status/diagnostic surface. It explicitly reports that playback integration is pending and does not alter Taurus audio.
+- This is a safe diagnostic build target, **not yet a functioning AutoMix release**. The Theos workflow has been committed but no successful iOS build artifact has yet been observed. The branch still needs a CI run and the runtime source contract remains unverified.
+
 ## Implemented and CI-verified
 - Portable C++17 library with no network or media-acquisition code, compiled into the Theos dylib target.
 - Stable C ABI (`SmartMixBridge.h`) for PCM analysis, streaming analysis, planning, and equal-power rendering.
