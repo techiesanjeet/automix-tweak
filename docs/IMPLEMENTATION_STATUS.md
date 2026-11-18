@@ -22,12 +22,13 @@
 - 2048-point Hann-windowed spectral-flux onset curve at approximately 100 frames/second, followed by normalized autocorrelation (nominal 60–180 BPM range).
 - Conservative half-time alias handling and folded beat-phase estimate in the fallback analyzer.
 - Beat This small0 Core ML conversion verified against upstream PyTorch, plus native C++ log-mel parity against torchaudio (max absolute error `1.91e-5`, mean `1.76e-6`).
+- Full-track Beat This inference now uses the pinned upstream 1,500-frame chunking, six-frame border trimming, shifted final chunk, and `keep_first` overlap aggregation. The model runs sequentially per chunk on a worker; portable tests cover short/long boundaries, overlap precedence, complete coverage, padding, and invalid logits. C++ CI run `44268809345` passed.
 - Beat/downbeat peak postprocessing, conservative 3/4 or 4/4 meter inference, and a C bridge that applies the model grid to planner tracks.
 - Synthetic 120 BPM and 100 BPM fixtures, including stereo downmix coverage.
 - Phrase-length overlap calculation, beat-phase fallback, and model-derived downbeat/meter-aware phrase alignment.
 - Equal-power two-buffer gain rendering.
 - Worker-side 32-tap windowed-sinc sample-rate conversion and varispeed; this changes pitch and is not pitch-preserving time stretch.
-- Local Beat This log-mel preprocessing, beat/downbeat logit postprocessing, and conservative 3/4 or 4/4 meter inference. Sparse mel-filter bounds skip zero-weight FFT bins without changing the numerical frontend contract.
+- Local Beat This log-mel preprocessing, full-track beat/downbeat chunk inference and stitching, logit postprocessing, and conservative 3/4 or 4/4 meter inference. Sparse mel-filter bounds skip zero-weight FFT bins without changing the numerical frontend contract.
 - Beta 0.60.7 source processor callback ABI is inferred from ARM64 disassembly; the non-invasive runtime probe reports source format and read-ahead capability without registering a processor. Static call-site analysis shows `SourcePrefix`/`SourceAheadFrames` are used for current-source Sing capture metadata, not as a next-track PCM feed.
 - Worker-side PCM adapter converts explicit planar Float32 stereo into mono 22050 Hz with finite-value checks and sinc resampling; portable tests cover sample count and tone preservation. Objective-C++ Core ML adapter loads the compiled model locally, accepts mono 22050 Hz chunks through the native spectrogram frontend, and passes beat/downbeat logits through the C bridge into meter-aware planning. The status UI self-test exercises the complete native log-mel + Core ML inference path on a synthetic tone.
 - Planner can align both transition ends to model-derived downbeats when both tracks have reliable, matching meter; it falls back to beat-phase alignment otherwise and skips known meter mismatches.
@@ -57,8 +58,15 @@ This remains a DSP prototype, not an Apple Music AutoMix replacement:
 1. Establish the remaining Beta source-processor runtime contract: callback ownership/chaining, source lifetime, buffer ownership, frame clock, format, and cancellation behavior. Static evidence indicates the examined read-ahead API is current-source metadata, not a next-track feed.
 2. Verify whether Taurus exposes the next queued track's decoded PCM through its normal streaming path early enough to render a transition locally. Do not fetch substitute audio or use Alpha's YouTube acquisition path.
 3. Implement a Beta-specific adapter that captures bounded PCM off the real-time callback, pre-renders the transition, inserts it at a verified source-clock position, and rejoins the original stream at an exact frame boundary. Always retain a deterministic passthrough fallback.
-4. Finish the Theos resource-bundle build, then benchmark the bundled Core ML model on iPhone 16 Pro / iOS 27.2.1. Model export and upstream parity are already verified in CI; no playback-time cloud inference or model download is permitted.
+4. Benchmark full-track Core ML inference and memory use on iPhone 16 Pro / iOS 27.2.1. The model resource is already bundled in the rootful/rootless package workflow and the native frontend/chunk-stitching tests pass in CI; on-device inference latency, thermal impact, and battery use remain unmeasured. No playback-time cloud inference or model download is permitted.
 5. Improve beat/downbeat, section, intro/outro and energy analysis; add a pitch-preserving time-stretch/resampler.
 6. Test seeks, queue changes, interruptions, route changes, format changes, underruns, memory, thermal behavior and battery on the target device.
 
 A passing CI run validates compilation and synthetic DSP tests only. Static IPA analysis is not a runtime/device test. Do not claim the Taurus integration is complete until the Beta source contract and handoff have been verified on-device.
+
+
+## Full-track Beat This inference (new)
+
+The native runtime now exposes `SMBeatThisPredictMonoTrack`. It computes the full-track log-mel spectrogram on a worker, builds 1,500-frame windows with the pinned upstream six-frame border, runs Core ML sequentially per window, and merges beat/downbeat logits with the upstream `keep_first` overlap policy. The fixed-shape Core ML adapter requires at least 1,488 spectrogram frames (about 29.76 seconds); shorter clips use the lightweight DSP fallback. Portable C++ tests verify chunk boundaries and complete coverage. This is full-track beat/downbeat analysis, not full music understanding: key, vocal/stem density, sections, and phrase-one semantics remain future work.
+
+The full-track inference path has passed the C++ workflow. The latest Theos arm64 package build that includes this new Objective-C++ API is being validated separately; no new installable package is claimed until that run completes.
