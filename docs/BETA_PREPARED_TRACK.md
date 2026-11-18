@@ -88,7 +88,7 @@ The Beta `spotifyglass.dylib` source-queue helpers were also inspected:
 
 - `SGAudioSourceQueueInitialize` scans the main image's Mach-O layout and records build-specific source-queue metadata.
 - `SGAudioSourceQueueSupported` accepts a very specific queue address/layout and checks a magic value.
-- `SGAudioSourceQueuePrefix` uses guarded `vm_read_overwrite` calls to inspect queue metadata, validates nested object signatures, and accumulates frame/byte-count-like values. It returns a prefix/frame count; it does not copy or return sample data.
+- `SGAudioSourceQueuePrefix` uses guarded `vm_read_overwrite` calls to inspect queue metadata, validates nested object signatures, and walks a linked-list-like set of buffer descriptors. It reads each descriptor's size field, sums byte counts, converts the total to frame-like units, caps the result to the requested frame count, and returns packed prefix/frame metadata. It does not copy or return sample data.
 - `SGAudioSourceQueueFrames` is a thin wrapper over the prefix query.
 - `SGAudioPipelineSourceCanReadAhead` scans registered queue entries and reports whether a supported queue is present. It does not identify an incoming track or return decoded PCM.
 - `SGAudioPipelineSourcePrefix(context, ...)` selects queue metadata associated with a specific source context.
