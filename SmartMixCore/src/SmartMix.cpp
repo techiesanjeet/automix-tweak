@@ -25,6 +25,34 @@ Analysis analyze(const AudioView& a) {
  if(bestLag>0&&best>0.05){out.bpm=6000.0/bestLag;out.beatPeriodSeconds=60.0/out.bpm;out.beatConfidence=std::clamp(best*0.75+(best-std::max(0.0,second))*0.25,0.0,1.0);std::size_t n=std::min<std::size_t>(bestLag,env.size());auto it=std::max_element(env.begin(),env.begin()+n);out.firstBeatSeconds=std::distance(env.begin(),it)/100.0;}
  out.usable=out.rms>1e-5&&out.durationSeconds>8;return out;
 }
+StreamingAnalyzer::StreamingAnalyzer(double sampleRate,double windowSeconds):sampleRate_(sampleRate){
+ if(!std::isfinite(sampleRate)||sampleRate<8000||sampleRate>192000||!std::isfinite(windowSeconds)||windowSeconds<8||windowSeconds>120){sampleRate_=0;return;}
+ ring_.resize(static_cast<std::size_t>(std::ceil(sampleRate*windowSeconds)),0.0f);
+}
+bool StreamingAnalyzer::append(const AudioView& chunk){
+ if(ring_.empty()||!chunk.samples||!chunk.frames||!chunk.channels||chunk.channels>8||!std::isfinite(chunk.sampleRate)||std::abs(chunk.sampleRate-sampleRate_)>0.5)return false;
+ for(std::size_t f=0;f<chunk.frames;++f){
+  double mono=0;
+  for(unsigned ch=0;ch<chunk.channels;++ch){float x=chunk.samples[f*chunk.channels+ch];if(!std::isfinite(x))return false;mono+=x;}
+  ring_[writeIndex_]=static_cast<float>(mono/chunk.channels);
+  writeIndex_=(writeIndex_+1)%ring_.size();
+  if(framesStored_<ring_.size())++framesStored_;
+ }
+ framesSeen_+=chunk.frames;
+ return true;
+}
+Analysis StreamingAnalyzer::analyzeLatest() const{
+ if(framesStored_==0||ring_.empty())return {};
+ std::vector<float> snapshot(framesStored_);
+ const std::size_t start=(writeIndex_+ring_.size()-framesStored_)%ring_.size();
+ for(std::size_t i=0;i<framesStored_;++i)snapshot[i]=ring_[(start+i)%ring_.size()];
+ Analysis result=analyze({snapshot.data(),snapshot.size(),1,sampleRate_});
+ const double windowOffset=static_cast<double>(framesSeen_-framesStored_)/sampleRate_;
+ if(result.bpm>0)result.firstBeatSeconds+=windowOffset;
+ result.durationSeconds=static_cast<double>(framesSeen_)/sampleRate_;
+ return result;
+}
+double StreamingAnalyzer::observedSeconds() const{return sampleRate_>0?static_cast<double>(framesSeen_)/sampleRate_:0.0;}
 Plan planTransition(const Track& a,const Track& b,double maxRatio,unsigned bars){
  Plan p;p.bars=bars;
  if(!std::isfinite(maxRatio)||maxRatio<=1||bars<1||bars>16){p.reason="invalid planner policy";return p;}
