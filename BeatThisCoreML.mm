@@ -9,6 +9,7 @@
 #include <dlfcn.h>
 #include <cstring>
 #include <cstdint>
+#include <limits>
 #include <mach-o/getsect.h>
 #include <mach-o/loader.h>
 #include <new>
