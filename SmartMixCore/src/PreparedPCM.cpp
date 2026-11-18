@@ -89,8 +89,9 @@ bool PreparedPCMSubstitution::process(float* output, std::size_t frames,
     }
     if (current != State::Armed && current != State::Playing) return false;
 
-    if (channels != channels_ || !std::isfinite(sampleRate) ||
-        std::abs(sampleRate - sampleRate_) > 0.5 ||
+    if (channels != channels_ ||
+        frames > std::numeric_limits<std::size_t>::max() / channels ||
+        !std::isfinite(sampleRate) || std::abs(sampleRate - sampleRate_) > 0.5 ||
         sourceEpoch != sourceEpoch_ ||
         frames > std::numeric_limits<std::uint64_t>::max() - callbackSourceFrame) {
         finishCancelled();
