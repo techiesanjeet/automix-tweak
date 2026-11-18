@@ -61,3 +61,13 @@ The first pinned small0 conversion succeeded on an Apple Silicon macOS runner:
 The trace is intentionally fixed-shape. Upstream trace warnings indicate that a different time dimension is not guaranteed to work; callers must supply exactly 1500 frames and apply the upstream six-frame edge trimming when stitching chunks. The conversion artifact is **not yet bundled into the tweak or tested on iPhone**.
 
 Exporter: `tools/export_beat_this_coreml.py`. Reproducible workflow: `.github/workflows/beat-this-coreml.yml`. It downloads the pinned checkpoint only during CI, verifies its hash, converts it, and checks PyTorch/Core ML parity. Runtime playback must use a bundled local `.mlmodelc` path only.
+
+
+## Native runtime adapter status
+
+- `BeatThisCoreML.mm` loads the compiled model from a local `SmartMixResources.bundle`, checking the dylib-adjacent, rootful, rootless, and app-bundle locations. It contains no checkpoint downloader or network fallback.
+- `SMBeatThisPredictMonoChunk` accepts mono 22050 Hz PCM, applies the native log-mel frontend, pads a fixed 1500-frame chunk with the upstream six-frame border, and returns beat/downbeat logits. It is a worker-thread API.
+- `SMApplyBeatThisLogitsToTrack` postprocesses logits, estimates a reliable 3/4 or 4/4 meter when possible, and updates the planner track through the C bridge.
+- The status UI includes a synthetic-silence model load/inference self-test. It does not inspect or alter live Taurus audio.
+- The native log-mel implementation is currently being parity-checked against the pinned torchaudio frontend. The previous check exposed an incorrect mel-filter normalization assumption; the implementation now matches the upstream `norm=None` setting, and the corrected parity run is pending.
+- The resource-bundle build workflow compiles the `.mlpackage` to `.mlmodelc` and stages it alongside the arm64 dylib. This packaging path still needs a successful end-to-end Theos CI run before it is considered validated.
