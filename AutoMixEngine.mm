@@ -5,7 +5,9 @@
 
 #include "smartmix/BeatThisCoreML.h"
 #include "smartmix/BetaSourceProcessorProbe.h"
+#include "smartmix/BeatThisSpectrogram.hpp"
 #include <chrono>
+#include <cmath>
 #include <vector>
 
 // SmartMix is deliberately playback-neutral until the Taurus Beta source
@@ -92,20 +94,32 @@ static NSString *AMBuildReport(void) {
             message = @"The local Beat This Core ML bundle could not be loaded. "
                        "Check that SmartMixResources.bundle is installed beside the tweak resources.";
         } else {
-            std::vector<float> spectrogram(1500 * 128, 0.0f);
-            std::vector<float> beat(1500, 0.0f);
-            std::vector<float> downbeat(1500, 0.0f);
-            const int success = SMBeatThisPredict(
-                model, spectrogram.data(), 1500, 128, beat.data(), downbeat.data());
+            constexpr std::size_t modelFrames = 1500;
+            constexpr std::size_t borderFrames = 6;
+            constexpr std::size_t audioFrames =
+                (modelFrames - 2 * borderFrames - 1) *
+                smartmix::kBeatThisHopLength;
+            std::vector<float> mono(audioFrames);
+            std::vector<float> beat(modelFrames, 0.0f);
+            std::vector<float> downbeat(modelFrames, 0.0f);
+            for (std::size_t i = 0; i < mono.size(); ++i) {
+                const double time = static_cast<double>(i) /
+                    smartmix::kBeatThisSampleRate;
+                mono[i] = static_cast<float>(0.15 * std::sin(
+                    2.0 * 3.141592653589793 * 220.0 * time));
+            }
+            const int success = SMBeatThisPredictMonoChunk(
+                model, mono.data(), mono.size(), borderFrames, borderFrames,
+                beat.data(), downbeat.data());
             SMBeatThisDestroy(model);
             const double elapsed = 1000.0 * std::chrono::duration<double>(
                 std::chrono::steady_clock::now() - started).count();
             message = success
                 ? [NSString stringWithFormat:
-                    @"Local model loaded and inferred successfully on synthetic silence.\n"
-                     "Inference + load: %.1f ms.\n"
+                    @"Local model loaded and ran the full native log-mel + Core ML path "
+                     "on a synthetic 220 Hz test signal.\nLoad + frontend + inference: %.1f ms.\n"
                      "No Taurus audio was read or changed.", elapsed]
-                : @"The model loaded, but the local inference self-test failed.";
+                : @"The model loaded, but the full local frontend/inference self-test failed.";
         }
 
         dispatch_async(dispatch_get_main_queue(), ^{
