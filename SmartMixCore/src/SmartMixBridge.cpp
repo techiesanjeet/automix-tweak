@@ -25,6 +25,8 @@ smartmix::Track fromC(const SMTrack &t) {
     out.analysis=fromC(t.analysis); out.introSeconds=t.introSeconds;
     out.outroSeconds=t.outroSeconds; out.energy=t.energy;
     out.vocalsLikely=t.vocalsLikely!=0;
+    out.firstDownbeatSeconds=t.firstDownbeatSeconds;
+    out.beatsPerBar=t.beatsPerBar;
     return out;
 }
 }
@@ -75,6 +77,7 @@ extern "C" int SMPlanTransition(const SMTrack *outgoing,const SMTrack *incoming,
         result->startIncomingSeconds=p.startIncomingSeconds; result->durationSeconds=p.durationSeconds;
         result->tempoRatio=p.tempoRatio; result->incomingPlaybackRate=p.incomingPlaybackRate;
         result->score=p.score; result->bars=p.bars;
+        result->beatsPerBar=p.beatsPerBar;
         std::snprintf(result->reason,sizeof(result->reason),"%s",p.reason?p.reason:"unknown");
         return p.valid?1:0;
     } catch (...) { return 0; }
