@@ -7,6 +7,7 @@ namespace {
 constexpr double kPi=3.14159265358979323846;
 float monoAt(const AudioView& a,std::size_t f) { double s=0; for(unsigned c=0;c<a.channels;++c)s+=a.samples[f*a.channels+c]; return static_cast<float>(s/a.channels); }
 double alignAtOrAfter(double t,double phase,double period) { if(!(period>0)||!std::isfinite(t)||!std::isfinite(phase))return t; return phase+std::ceil((t-phase)/period)*period; }
+double alignAtOrBefore(double t,double phase,double period) { if(!(period>0)||!std::isfinite(t)||!std::isfinite(phase))return t; return phase+std::floor((t-phase)/period)*period; }
 }
 Analysis analyze(const AudioView& a) {
  Analysis out;
@@ -63,7 +64,8 @@ Plan planTransition(const Track& a,const Track& b,double maxRatio,unsigned bars)
  const double ob=a.analysis.beatPeriodSeconds,ib=b.analysis.beatPeriodSeconds;p.durationSeconds=ob*4.0*bars;
  double latest=a.analysis.durationSeconds-std::max(0.0,a.outroSeconds)-p.durationSeconds,earliest=std::max(0.0,a.introSeconds);
  if(latest<earliest){p.reason="outgoing track has no full phrase available";return p;}
- p.startOutgoingSeconds=alignAtOrAfter(std::max(earliest,latest),a.analysis.firstBeatSeconds,ob);
+ p.startOutgoingSeconds=alignAtOrBefore(latest,a.analysis.firstBeatSeconds,ob);
+ if(p.startOutgoingSeconds<earliest){p.reason="no beat-aligned outgoing start inside usable region";return p;}
  p.startIncomingSeconds=alignAtOrAfter(std::max(0.0,b.introSeconds),b.analysis.firstBeatSeconds,ib);
  if(p.startOutgoingSeconds+p.durationSeconds>a.analysis.durationSeconds-std::max(0.0,a.outroSeconds)+1e-6||p.startIncomingSeconds+p.durationSeconds>b.analysis.durationSeconds){p.reason="not enough prepared audio";return p;}
  double ts=1.0-std::abs(std::log(ratio))/std::log(maxRatio),es=1.0-std::min(1.0,std::abs(a.energy-b.energy));p.score=std::clamp(0.65*ts+0.35*es,0.0,1.0);p.valid=true;p.reason="beat-phase-aligned phrase candidate";return p;
