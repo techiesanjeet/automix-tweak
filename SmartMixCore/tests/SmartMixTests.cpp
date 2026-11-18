@@ -2,6 +2,7 @@
 #include "smartmix/SmartMix.hpp"
 #include "smartmix/PreparedPCM.hpp"
 #include "smartmix/Resampler.hpp"
+#include "smartmix/AudioInputAdapter.hpp"
 #include "smartmix/BeatThisSpectrogram.hpp"
 #include "smartmix/BeatThisPostprocessor.hpp"
 #include "smartmix/SmartMixBridge.h"
@@ -50,6 +51,35 @@ int main() {
     const auto stereoAnalysis = analyze({stereo.data(), slower.size(), 2, sampleRate});
     assert(stereoAnalysis.usable);
     assert(std::abs(stereoAnalysis.bpm - 100.0) < 4.0);
+
+    // Adapt the Beta planar Float32 stereo format to Beat This mono 22050 Hz.
+    std::vector<float> planarLeft(44100), planarRight(44100);
+    for (std::size_t i = 0; i < planarLeft.size(); ++i) {
+        const float sample = static_cast<float>(0.2 * std::sin(
+            2.0 * 3.141592653589793 * 1000.0 *
+            static_cast<double>(i) / 44100.0));
+        planarLeft[i] = sample;
+        planarRight[i] = sample;
+    }
+    std::vector<float> modelMono;
+    assert(prepareBeatThisMono22050(planarLeft.data(), planarRight.data(),
+                                    planarLeft.size(), 44100.0, modelMono));
+    assert(modelMono.size() == 22050);
+    std::size_t zeroCrossings = 0;
+    for (std::size_t i = 1; i < modelMono.size(); ++i) {
+        if ((modelMono[i - 1] < 0.0f && modelMono[i] >= 0.0f) ||
+            (modelMono[i - 1] >= 0.0f && modelMono[i] < 0.0f)) {
+            ++zeroCrossings;
+        }
+    }
+    assert(zeroCrossings >= 1995 && zeroCrossings <= 2005);
+    assert(!prepareBeatThisMono22050(planarLeft.data(), planarRight.data(),
+                                     planarLeft.size(), 7000.0, modelMono));
+    assert(modelMono.empty());
+    planarLeft[100] = std::numeric_limits<float>::quiet_NaN();
+    assert(!prepareBeatThisMono22050(planarLeft.data(), planarRight.data(),
+                                     planarLeft.size(), 44100.0, modelMono));
+    assert(modelMono.empty());
 
     StreamingAnalyzer stream(sampleRate, 16.0);
     const std::size_t chunkFrames = static_cast<std::size_t>(sampleRate * 4.0);
