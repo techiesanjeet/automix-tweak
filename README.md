@@ -17,4 +17,4 @@ Research, architecture, and streaming-analysis prototype stage. The supplied Alp
 
 ## Build notes
 
-The Theos library target now compiles the portable SmartMix core and its C ABI bridge. The separate `Makefile.diagnostics` target includes read-only runtime class discovery and a LOG report for collecting Taurus/iOS runtime evidence. Neither target establishes dual-deck playback: the runtime adapter and device validation are still outstanding.
+The Theos library target is configured to compile the portable SmartMix core and its C ABI bridge (the Theos/iOS build itself has not yet been run here). The separate `Makefile.diagnostics` target includes read-only runtime class discovery and a LOG report for collecting Taurus/iOS runtime evidence. Neither target establishes dual-deck playback: the runtime adapter and device validation are still outstanding.
