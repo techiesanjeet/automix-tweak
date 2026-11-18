@@ -36,6 +36,16 @@ int SMBeatThisPredictMonoChunk(SMBeatThisModel *model,
                                float *beatLogits,
                                float *downbeatLogits);
 
+// Runs the full pinned 1500-frame model over a longer mono 22050 Hz track.
+// Splits and aggregates with the upstream six-frame border/keep-first policy.
+// outputFrames must equal beatThisSpectrogramFrameCount(audioFrames). Worker only.
+int SMBeatThisPredictMonoTrack(SMBeatThisModel *model,
+                               const float *mono22050,
+                               size_t audioFrames,
+                               float *beatLogits,
+                               float *downbeatLogits,
+                               size_t outputFrames);
+
 #ifdef __cplusplus
 }
 #endif
