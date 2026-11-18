@@ -1,4 +1,5 @@
 #import <UIKit/UIKit.h>
+#import <AudioToolbox/AudioToolbox.h>
 #import <Foundation/Foundation.h>
 #import <dlfcn.h>
 
