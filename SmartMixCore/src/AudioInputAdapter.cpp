@@ -22,7 +22,7 @@ bool prepareBeatThisMono22050(const float *left, const float *right,
     std::vector<float> downmixed(inputFrames);
     for (std::size_t i = 0; i < inputFrames; ++i) {
         if (!std::isfinite(left[i]) || !std::isfinite(right[i])) return false;
-        downmixed[i] = 0.5f * (left[i] + right[i]);
+        downmixed[i] = 0.5f * left[i] + 0.5f * right[i];
     }
 
     const long double lastSourcePosition =
