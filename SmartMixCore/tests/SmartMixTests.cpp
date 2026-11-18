@@ -21,5 +21,10 @@ assert(!stream.append({audio.data(),128,1,48000}));
 
 std::vector<float> l(256,1),r(256,1),o(256);renderEqualPower(l.data(),r.data(),o.data(),256,1,0,1.0/255);assert(std::abs(o.front()-1)<1e-5&&std::abs(o.back()-1)<1e-5);for(float x:o)assert(std::isfinite(x));
 Track x;x.analysis=a;x.energy=.6;x.outroSeconds=8;Track y;y.analysis=a;y.energy=.55;auto p=planTransition(x,y);assert(p.valid&&p.durationSeconds>0&&p.incomingPlaybackRate==1);
+Track edge=x;edge.analysis.durationSeconds=31.9;
+auto edgePlan=planTransition(edge,y);
+assert(edgePlan.valid);
+assert(edgePlan.startOutgoingSeconds+edgePlan.durationSeconds<=edge.analysis.durationSeconds-edge.outroSeconds+1e-6);
+
 double op=(p.startOutgoingSeconds-a.firstBeatSeconds)/a.beatPeriodSeconds,ip=(p.startIncomingSeconds-a.firstBeatSeconds)/a.beatPeriodSeconds;assert(std::abs(op-std::round(op))<1e-6&&std::abs(ip-std::round(ip))<1e-6);assert(!planTransition(x,y,1,8).valid);assert(!planTransition(x,y,1.08,0).valid);
 std::cout<<"SmartMix DSP tests passed; BPM="<<a.bpm<<" confidence="<<a.beatConfidence<<"\n";}
