@@ -180,23 +180,22 @@ bool applyBeatGridToTrack(const BeatGrid& grid, Track& track) {
     if (!std::isfinite(firstBeat) || firstBeat < 0.0 ||
         firstBeat >= track.analysis.durationSeconds) return false;
 
+    double firstDownbeat = 0.0;
+    const bool hasMeter = (grid.beatsPerBar == 3 || grid.beatsPerBar == 4) &&
+        !grid.downbeatTimesSeconds.empty();
+    if (hasMeter) {
+        firstDownbeat = grid.downbeatTimesSeconds.front();
+        if (!std::isfinite(firstDownbeat) || firstDownbeat < 0.0 ||
+            firstDownbeat >= track.analysis.durationSeconds) return false;
+    }
+
     track.analysis.bpm = grid.bpm;
     track.analysis.beatPeriodSeconds = grid.beatPeriodSeconds;
     track.analysis.firstBeatSeconds = firstBeat;
     track.analysis.beatConfidence = grid.beatConfidence;
     track.analysis.usable = true;
-
-    if ((grid.beatsPerBar == 3 || grid.beatsPerBar == 4) &&
-        !grid.downbeatTimesSeconds.empty()) {
-        const double firstDownbeat = grid.downbeatTimesSeconds.front();
-        if (!std::isfinite(firstDownbeat) || firstDownbeat < 0.0 ||
-            firstDownbeat >= track.analysis.durationSeconds) return false;
-        track.firstDownbeatSeconds = firstDownbeat;
-        track.beatsPerBar = grid.beatsPerBar;
-    } else {
-        track.firstDownbeatSeconds = 0.0;
-        track.beatsPerBar = 0;
-    }
+    track.firstDownbeatSeconds = hasMeter ? firstDownbeat : 0.0;
+    track.beatsPerBar = hasMeter ? grid.beatsPerBar : 0;
     return true;
 }
 
