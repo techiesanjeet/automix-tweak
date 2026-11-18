@@ -25,7 +25,9 @@ bool copyLogits(MLMultiArray *array, float *destination) {
     const float *values = static_cast<const float *>(array.dataPointer);
     if (!values) return false;
     for (std::size_t i = 0; i < kBeatThisFrames; ++i) {
-        destination[i] = values[i * stride];
+        const float value = values[i * stride];
+        if (!std::isfinite(value)) return false;
+        destination[i] = value;
     }
     return true;
 }
