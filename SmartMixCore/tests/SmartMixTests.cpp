@@ -77,13 +77,25 @@ int main() {
     outgoing.analysis = cAnalysis;
     outgoing.energy = 0.6;
     outgoing.outroSeconds = 8.0;
-    outgoing.firstDownbeatSeconds = cAnalysis.firstBeatSeconds;
-    outgoing.beatsPerBar = 4;
     SMTrack incoming{};
     incoming.analysis = cAnalysis;
     incoming.energy = 0.55;
-    incoming.firstDownbeatSeconds = cAnalysis.firstBeatSeconds;
-    incoming.beatsPerBar = 4;
+    std::vector<float> cBeatLogits(1500, -5.0f);
+    std::vector<float> cDownbeatLogits(1500, -5.0f);
+    for (std::size_t frame = 100; frame <= 500; frame += 25) {
+        cBeatLogits[frame] = 5.0f;
+    }
+    for (std::size_t frame : {100u, 200u, 300u, 400u, 500u}) {
+        cDownbeatLogits[frame] = 6.0f;
+    }
+    assert(SMApplyBeatThisLogitsToTrack(
+        cBeatLogits.data(), cDownbeatLogits.data(), 1500, 6, 1494, 50.0,
+        &outgoing) == 1);
+    assert(SMApplyBeatThisLogitsToTrack(
+        cBeatLogits.data(), cDownbeatLogits.data(), 1500, 6, 1494, 50.0,
+        &incoming) == 1);
+    assert(outgoing.beatsPerBar == 4 && incoming.beatsPerBar == 4);
+    assert(std::abs(outgoing.firstDownbeatSeconds - 2.0) < 1e-6);
     SMPlan cPlan{};
     assert(SMPlanTransition(&outgoing, &incoming, 1.08, 8, &cPlan) == 1);
     assert(cPlan.valid && cPlan.durationSeconds > 0.0 && cPlan.beatsPerBar == 4);
