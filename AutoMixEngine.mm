@@ -95,7 +95,7 @@ static NSString *AMBuildReport(void) {
             const int success = SMBeatThisPredict(
                 model, spectrogram.data(), 1500, 128, beat.data(), downbeat.data());
             SMBeatThisDestroy(model);
-            const double elapsed = std::chrono::duration<double, std::milli>(
+            const double elapsed = 1000.0 * std::chrono::duration<double>(
                 std::chrono::steady_clock::now() - started).count();
             message = success
                 ? [NSString stringWithFormat:
