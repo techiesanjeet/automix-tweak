@@ -10,10 +10,16 @@ static BOOL AMHas(NSString *s, NSArray<NSString *> *terms) {
     for (NSString *t in terms) if ([v containsString:t]) return YES;
     return NO;
 }
-static BOOL AMIsSpotifyImage(Class c) {
+static BOOL AMIsTargetAppImage(Class c) {
     const char *p = class_getImageName(c);
     NSString *image = AMSafe(p).lowercaseString;
-    return [image containsString:@"spotify.app/"] || [image containsString:@"/spotify"];
+    NSString *appBundle = NSBundle.mainBundle.bundlePath.lowercaseString;
+    // Taurus embeds Spotify frameworks inside Taurus.app; filtering only for
+    // Spotify.app silently excludes the target's runtime classes.
+    return (appBundle.length && [image hasPrefix:appBundle]) ||
+           [image containsString:@"spotifyglass.dylib"] ||
+           [image containsString:@"spotify.app/"] ||
+           [image containsString:@"/spotify"];
 }
 static NSArray<NSString *> *AMClassTerms(void) {
     return @[@"automix",@"mixing",@"crossfade",@"cross-fade",@"transition",@"multiplayer",
@@ -87,7 +93,7 @@ static NSString *AMScan(void) {
     NSArray *terms = AMClassTerms();
     for (int i=0;i<filled;i++) {
         Class c = classes[i];
-        if (!c || !AMIsSpotifyImage(c)) continue;
+        if (!c || !AMIsTargetAppImage(c)) continue;
         NSString *name = AMSafe(class_getName(c));
         if (AMHas(name, terms)) { [targets addObject:c]; [names addObject:name]; }
     }
@@ -184,7 +190,7 @@ __attribute__((constructor)) static void AutoMixDiscoveryV6(void) {
         button.frame=CGRectMake(MAX(12,window.bounds.size.width-104),MAX(90,window.bounds.size.height-190),92,44);
         button.autoresizingMask=UIViewAutoresizingFlexibleTopMargin|UIViewAutoresizingFlexibleLeftMargin;
         button.backgroundColor=[UIColor colorWithRed:0.12 green:0.55 blue:0.95 alpha:0.95];
-        [button setTitle:@"SCAN MIX" forState:UIControlStateNormal];
+        [button setTitle:@"SCAN PLAYERS" forState:UIControlStateNormal];
         [button setTitleColor:UIColor.whiteColor forState:UIControlStateNormal];
         button.titleLabel.font=[UIFont boldSystemFontOfSize:14];
         button.layer.cornerRadius=12;
