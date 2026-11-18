@@ -3,6 +3,7 @@
 #include <algorithm>
 #include <cmath>
 #include <cstddef>
+#include <cstdint>
 #include <limits>
 
 namespace smartmix {
@@ -24,6 +25,8 @@ bool resampleInterleaved(const float* input, std::size_t inputFrames,
     if (!input || !output || input == output || !inputFrames || !outputFrames ||
         !channels || channels > 8 ||
         inputFrames > std::numeric_limits<std::size_t>::max() / channels ||
+        inputFrames > static_cast<std::size_t>(
+            std::numeric_limits<std::int64_t>::max() - kHalfTaps) ||
         outputFrames > std::numeric_limits<std::size_t>::max() / channels ||
         !std::isfinite(inputSampleRate) || !std::isfinite(outputSampleRate) ||
         !std::isfinite(playbackRate) || inputSampleRate < 8000.0 ||
