@@ -68,3 +68,8 @@ or inference request is permitted during playback.
 - Build-time workflow: `.github/workflows/beat-this-coreml.yml`.
 - The workflow checks out the pinned upstream source, downloads the official checkpoint only during CI, converts a fixed 1500-frame model, and requires CPU Core ML/PyTorch logit parity before uploading the `.mlpackage` artifact.
 - This artifact is not yet bundled into the tweak or loaded by the iOS runtime. The runtime must use a local bundled path only.
+
+
+## Native frontend parity result
+
+The C++ frontend now matches the pinned upstream torchaudio transform on a deterministic three-second waveform. The parity fixture produced shape `[151, 128]`, maximum absolute error `1.91e-5`, and mean absolute error `1.76e-6`. The implementation uses the upstream Slaney frequency mapping with `norm=None`, frame-length normalization, periodic Hann window, centered reflect padding, and `log1p(1000 * mel)`.
