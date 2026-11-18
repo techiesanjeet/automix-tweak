@@ -1,7 +1,7 @@
 TARGET := iphone:clang:latest:14.0
 ARCHS = arm64
 LIBRARY_NAME = AutoMixDiagnostics
-AutoMixDiagnostics_FILES = AutoMixDiagnostics.mm
+AutoMixDiagnostics_FILES = AutoMixDiagnostics.mm AutoMixDiscoveryV6.mm
 AutoMixDiagnostics_FRAMEWORKS = UIKit Foundation AVFoundation
 AutoMixDiagnostics_CFLAGS = -fobjc-arc
 AutoMixDiagnostics_CXXFLAGS = -std=c++17
