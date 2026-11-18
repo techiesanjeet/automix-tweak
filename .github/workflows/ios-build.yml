@@ -1,0 +1,58 @@
+name: iOS Theos build
+
+on:
+  push:
+    branches: ["**"]
+    paths:
+      - "AutoMixEngine.mm"
+      - "fishhook.c"
+      - "fishhook.h"
+      - "Makefile"
+      - "SmartMixCore/**"
+      - ".github/workflows/ios-build.yml"
+  pull_request:
+    paths:
+      - "AutoMixEngine.mm"
+      - "fishhook.c"
+      - "fishhook.h"
+      - "Makefile"
+      - "SmartMixCore/**"
+      - ".github/workflows/ios-build.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  build-arm64:
+    runs-on: macos-15
+    steps:
+      - name: Check out source
+        uses: actions/checkout@v4
+
+      - name: Install Theos and iOS SDKs
+        uses: Randomblock1/theos-action@v1
+
+      - name: Build arm64 iOS dylib
+        run: |
+          set -o pipefail
+          make clean
+          make messages=yes
+
+      - name: Verify produced dylib
+        run: |
+          set -euo pipefail
+          DYLIB="$(find . -type f -name 'AutoMixEngine.dylib' -print -quit)"
+          test -n "$DYLIB"
+          file "$DYLIB"
+          xcrun --sdk iphoneos lipo -info "$DYLIB" || lipo -info "$DYLIB"
+          mkdir -p "$RUNNER_TEMP/automix-build"
+          cp "$DYLIB" "$RUNNER_TEMP/automix-build/AutoMixEngine.dylib"
+
+      - name: Upload build artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: AutoMixEngine-ios-arm64-dylib
+          path: ${{ runner.temp }}/automix-build/AutoMixEngine.dylib
+          if-no-files-found: error
+          retention-days: 14
