@@ -18,8 +18,8 @@ Online song delivery and local AutoMix are compatible. The intended data path is
 2. A narrowly scoped adapter observes decoded PCM that the player legitimately exposes. It copies bounded chunks to a background analysis worker; the real-time render callback must not run FFTs, allocate memory, wait on locks, or perform model inference.
 3. The worker maintains a rolling PCM/feature window and updates tempo, beat phase, loudness, section and vocal-density estimates as evidence becomes available.
 4. When the queue identifies the next track, Taurus prepares that track through its own normal streaming path. The engine analyzes its available preview/lookahead PCM locally.
-5. A local planner chooses transition entry/exit points and effects. A local renderer mixes two independently available decks on a shared output clock.
-6. If the incoming deck is late, unavailable, or cannot be rendered concurrently, cancel the planned mix and let Taurus's normal playback behavior continue.
+5. A local planner chooses transition entry/exit points and effects. A local renderer pre-renders the overlap from outgoing and incoming PCM, then a verified Taurus source processor substitutes that prepared PCM over an exact source-frame interval and rejoins the original stream.
+6. If Taurus cannot expose incoming decoded PCM early enough, or source-clock insertion/rejoin cannot be guaranteed, cancel the planned mix and let Taurus's normal playback behavior continue.
 
 The engine must never download a duplicate song from another service. Streaming the song from Taurus is allowed; sending audio/features to a cloud model or requesting a cloud-computed transition is not part of this design. A future compact ML model should be bundled/installed locally and have deterministic DSP fallback behavior.
 
@@ -68,7 +68,7 @@ Treat V2 as a DSP experiment, not proof of a usable Spotify dual-deck API.
 Start with deterministic DSP, not a large opaque model. A compact optional on-device model may later classify sections or vocal density, but inference must remain local and have a non-network fallback.
 
 ## Milestones
-1. **Prove the audio path:** establish whether the host exposes two independently renderable sources and whether the next track can be prepared without network access. Do not bypass protected media decoding.
+1. **Prove the audio path:** establish whether Taurus's normal queue/streaming path exposes continuous next-track decoded PCM early enough for local pre-rendering, and verify the source-processor frame clock and rejoin semantics. Do not bypass protected media decoding.
 2. **Build an analysis harness:** use licensed/local PCM fixtures to test BPM, beat grid, downbeats, loudness, silence, and intro/outro detection.
 3. **Build a planner:** score exit/entry points using beat phase, tempo ratio, phrase boundaries, energy, and vocal overlap.
 4. **Build a two-source renderer:** beat-aligned timing, equal-power gain curves, optional low-frequency handoff, bounded CPU/memory.
