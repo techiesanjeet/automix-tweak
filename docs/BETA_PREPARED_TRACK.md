@@ -52,6 +52,28 @@ The recipe, preset, backend arm, and transition URI are copied/parsed into the i
 
 These names show that the native player understands an outgoing/incoming recipe with start positions and speed automation. They do not, by themselves, reveal the full serialized recipe schema or prove that the player accepts a locally constructed recipe.
 
+
+### Native transition data model recovered from Swift metadata
+
+The same executable contains a concrete `MixingOverlap` value type with these stored fields:
+
+- `outStartPosition: Int`
+- `outSpeed: Float`
+- `inStartPosition: Int`
+- `inSpeed: Float`
+- `barDurationToInSpeed: Dictionary<Int, Float>`
+- `duration: Int`
+- `durationBars: Int`
+- `isBeatmatched: Bool`
+- `trackAUri`, `trackBUri`
+- `trackAPlayableUri`, `trackBPlayableUri`
+
+The related `MixingTransition` model carries an overlap and preset, plus override flags and the `auto`, `custom`, and `noTransition` cases. `MixingTransitionWithRowIDs` adds outgoing/incoming row IDs and `beats`, `duration`, and `bpm` values.
+
+This data model maps closely to what the local planner can calculate: outgoing/incoming start positions, playback-speed ratios, transition duration, bars, and beatmatch status. It is a useful target schema for a future adapter, but it is **not yet proven** to be the exact serialization expected by the `automix.auto_transition_recipe` metadata key. The parser and audio-player command formats still need to be traced.
+
+The executable also contains validation/fallback strings for track-pair mismatch, beat-hash mismatch, speed mismatch, low beatmatchability, and unknown/none presets. This suggests the native engine validates recipe identity and can fall back to an automatic transition. It does not prove that a locally created recipe can pass those checks without server-provided identifiers or hashes.
+
 ## Why the stock AutoMix planner is not the local solution
 
 Swift reflection metadata identifies `MixingCoreAutomixTransitionLoader` and `MixingAutomixTransitionLoader` with an `automixClient` dependency. The executable contains a generated `Spotify_Automix_Esperanto_Proto_AutomixClient` type and request/response messages such as `GetComputedTransitionsRequest/Response` and `AdjustTransitionRecipeForItemSpeedsRequest/Response`.
