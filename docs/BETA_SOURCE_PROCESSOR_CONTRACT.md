@@ -61,6 +61,30 @@ The source-prefix exports have a concrete in-binary call site in `SGSingAudioAtt
 
 Therefore, the read-ahead symbols should be understood as source-queue/Sing capture metadata unless runtime evidence proves more. They do **not** establish continuous next-track PCM. Do not call them to fetch or decode an incoming song.
 
+### Additional Beta Sing continuity disassembly (new)
+
+The following exported functions were located in the same Beta dylib's export trie and disassembled. Addresses are virtual addresses in the supplied arm64 image; all conclusions remain static inferences, not runtime observations.
+
+| Function | Address | What the body actually does |
+|---|---:|---|
+| `SGSingAudioAttach` | `0x20A3C8` | Validates the active source context and format, checks source read-ahead capability, then installs the Sing source processor callback with a Sing context |
+| Sing source processor callback | `0x20A5A0` | Processes bounded chunks (up to 4096 frames), reads Sing's captured-frame counter, optionally consults source-prefix metadata, calls `SGSingStreamRender`, and writes rendered samples into the supplied output buffers; stale context falls back to `SGAudioPipelinePullOriginal` |
+| `SGSingAudioExpectTrack` | `0x20A9B0` | Atomically stores an expected opaque track identity in the Sing context |
+| `SGSingAudioContinueTrack` | `0x20A9BC` | Checks that identity against the expected track, checks captured-frame progress and a four-entry continuity queue, then stores the identity plus a frame/clock boundary and clears the expectation fields |
+| `SGSingAudioAwaitingTrack` | `0x20AA7C` | Compares a supplied opaque track identity with the most recently queued continuity entry |
+| `SGSingAudioClock` | `0x20AB00` | Returns a clock value only when the Sing context, track identity, and generation counters still match |
+| `SGSingStreamCaptured` / `Queued` / `ReadyFrames` | `0x2125B0`–`0x2125D0` | Return counters from Sing's own stream object |
+| `SGSingStreamReadInput` | `0x212628` | Reads from the Sing stream's internal audio ring when its worker/state flags permit |
+| `SGSingStreamReadLiveInput` | `0x212654` | Reads/compacts data in the same Sing audio ring while respecting its internal read position and worker flags |
+| `SGSingTimelineCopyOriginal` | `0x213228` | Copies a requested frame range from Sing's own original-audio timeline ring, bounded by stored timeline positions |
+
+The key distinction is that `SGSingAudioContinueTrack` queues an **opaque track identity and a frame/clock boundary**. Its body does not receive an AudioBufferList, PCM pointer, decoded sample block, or incoming AudioUnit. `SGSingAudioAwaitingTrack` is likewise an identity comparison. The stream read APIs operate on Sing's own ring buffer; they do not accept a track identifier or return a second independently rendered deck.
+
+This explains the log string “Sing continuing the prepared next track with … queued frames”: the code supports maintaining Sing's capture/processing continuity as a prepared track becomes current. It does not, by itself, mean the next track's PCM is exposed early enough for an overlap mix. It may help preserve source identity and timing across a natural transition, and may permit analysis/capture to continue after the next track starts, but that is not equivalent to pre-transition incoming PCM.
+
+The Sing source callback is also not a safe AutoMix integration point as-is: `SGSingAudioAttach` installs it into the same single global source-processor slot already identified above. Replacing or wrapping that callback without a proven chain/ownership contract risks breaking Sing or Taurus playback.
+
+**Updated conclusion:** Beta has a concrete next-track continuity mechanism for Sing, not merely generic queue metadata. The inspected implementation tracks the next source identity and source-clock boundary while processing Sing's stream. No static evidence in these functions shows pre-transition decoded PCM for the incoming track or a second independently renderable deck. Continue searching other player/queue paths; do not repurpose the Sing slot or claim incoming PCM is available.
 
 ## Required contract (must be measured, not guessed)
 
@@ -69,7 +93,7 @@ Therefore, the read-ahead symbols should be understood as source-queue/Sing capt
 | Registration | Callback and context arguments/boolean return are inferred; lifecycle and slot ownership still need runtime confirmation | Do not register until current callback ownership can be preserved |
 | Processor callback | Prototype inferred as `(context, UInt32 frames, AudioBufferList*, AudioTimeStamp*)`; invocation thread/reentrancy still unverified | Callback must be bounded, nonblocking and allocation-free |
 | Source identity | How a source is identified and replaced | Bind captured PCM to a source epoch; invalidate on replacement |
-| PCM format | Setter checks 44.1 kHz/two channels; original pull expects two one-channel buffers with four bytes/frame; confirm ASBD flags and bit depth | Reject unsupported formats; never reinterpret unknown buffers |
+| PCM format | Setter checks 44.1 kHz/two channels; original-pull expects two one-channel buffers with four bytes/frame; confirm ASBD flags and bit depth | Reject unsupported formats; never reinterpret unknown buffers |
 | Buffer ownership | Who allocates, owns, retains and releases input/output memory | Copy only into preallocated bounded storage; never retain borrowed pointers |
 | Pull semantics | `Pull` dispatches the installed processor or original path; `PullOriginal` bypasses the processor | Preserve exactly-once original pull semantics; no recursive pull |
 | Read-ahead | Meaning and limits of SourceAheadFrames / SourceCanReadAhead | Do not infer next-track availability from current-source lookahead |
