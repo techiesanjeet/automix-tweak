@@ -340,7 +340,7 @@ Plan planTransition(const Track& outgoing, const Track& incoming,
     plan.valid = true;
     plan.reason = useDownbeatGrid
         ? "downbeat-aligned phrase candidate"
-        : "beat-phase-aligned phrase candidate";
+        : "beat-aligned candidate; meter unavailable";
     return plan;
 }
 
