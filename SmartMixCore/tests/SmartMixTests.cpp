@@ -2,6 +2,7 @@
 #include "smartmix/SmartMix.hpp"
 #include "smartmix/PreparedPCM.hpp"
 #include "smartmix/Resampler.hpp"
+#include "smartmix/BeatThisSpectrogram.hpp"
 #include "smartmix/SmartMixBridge.h"
 #include <cassert>
 #include <cmath>
@@ -218,6 +219,28 @@ int main() {
     assert(std::abs(estimateFrequency(varispeed, outputRate) - 1050.0) < 45.0);
     assert(!resampleInterleaved(tone.data(), tone.size(), 1, inputRate,
                                 varispeed.data(), 5000, outputRate, 1.0));
+
+    // The Beat This! preprocessing path uses centered 1024-point STFT frames
+    // and emits 128 Slaney log-mel bins every 441 samples.
+    constexpr std::size_t modelAudioFrames = 22050 * 2;
+    std::vector<float> modelAudio(modelAudioFrames);
+    for (std::size_t i = 0; i < modelAudio.size(); ++i) {
+        modelAudio[i] = static_cast<float>(0.2 * std::sin(
+            2.0 * 3.141592653589793 * 440.0 * static_cast<double>(i) / 22050.0));
+    }
+    const std::size_t melFrames = beatThisSpectrogramFrameCount(modelAudio.size());
+    assert(melFrames == 101);
+    std::vector<float> melSpectrogram(melFrames * kBeatThisMelBins);
+    assert(computeBeatThisSpectrogram(modelAudio.data(), modelAudio.size(),
+                                      melSpectrogram.data(), melFrames));
+    bool hasEnergy = false;
+    for (float value : melSpectrogram) {
+        assert(std::isfinite(value) && value >= 0.0f);
+        hasEnergy = hasEnergy || value > 0.0f;
+    }
+    assert(hasEnergy);
+    assert(!computeBeatThisSpectrogram(modelAudio.data(), modelAudio.size(),
+                                       melSpectrogram.data(), melFrames - 1));
 
     std::cout << "SmartMix DSP tests passed; BPM=" << analysis.bpm
               << " confidence=" << analysis.beatConfidence << "\n";
