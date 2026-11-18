@@ -84,9 +84,12 @@ static void AMInstallButton(void) {
 static void AMCollectSnapshot(NSString *reason) {
     AMLog(@"--- snapshot: %@ ---", reason);
     NSBundle *bundle = NSBundle.mainBundle;
-    AMLog(@"bundle=%@ version=%@ build=%@", bundle.bundleIdentifier,
+    AMLog(@"bundle=%@ version=%@ build=%@ iOS=%@ device=%@",
+          bundle.bundleIdentifier,
           bundle.infoDictionary[@"CFBundleShortVersionString"],
-          bundle.infoDictionary[@"CFBundleVersion"]);
+          bundle.infoDictionary[@"CFBundleVersion"],
+          UIDevice.currentDevice.systemVersion,
+          UIDevice.currentDevice.model);
 
     NSArray *symbols = @[
         @"SGAutoMixSupportedVersion", @"SGAutoMixEnabled",
@@ -98,6 +101,13 @@ static void AMCollectSnapshot(NSString *reason) {
     ];
     for (NSString *symbol in symbols)
         AMLog(@"symbol %@: %@", symbol, AMPointer(symbol.UTF8String));
+
+    // Confirms whether the separately built SmartMix dylib exports its C ABI
+    // into this process; it does not invoke analysis or inspect any audio.
+    for (NSString *symbol in @[@"SMAnalyzePCM", @"SMCreateStreamingAnalyzer",
+                                @"SMAppendPCM", @"SMAnalyzeLatest",
+                                @"SMPlanTransition", @"SMRenderEqualPower"])
+        AMLog(@"local SmartMix ABI %@: %@", symbol, AMPointer(symbol.UTF8String));
 
     NSArray *keys = @[
         @"spotifyglass.automix", @"spotifyglass.automix.savedPreferences",
