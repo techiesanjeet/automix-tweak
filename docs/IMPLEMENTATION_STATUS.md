@@ -8,8 +8,9 @@
 
 - Added a macOS 15 / Theos arm64 build workflow that installs Theos + iOS SDKs, compiles the dylib, verifies its architecture, and uploads the artifact.
 - Removed the old `AudioUnitRender` fade-only hook from the active engine. That hook only attenuated the current song, used unsynchronized shared state, and was not a real two-track AutoMix transition.
-- The current UI is now an honest status/diagnostic surface. It explicitly reports that playback integration is pending and does not alter Taurus audio.
-- This is a safe diagnostic build target, **not yet a functioning AutoMix release**. The Theos workflow has been committed but no successful iOS build artifact has yet been observed. The branch still needs a CI run and the runtime source contract remains unverified.
+- The current UI is an honest status/diagnostic surface. It reports that playback integration is pending and does not alter Taurus audio.
+- The default-branch diagnostic snapshot has completed a successful Theos arm64 build and artifact upload. Subsequent feature-branch DSP changes are being rebuilt separately; each commit's CI result is tracked before calling it validated.
+- This is still a safe diagnostic build target, **not a functioning AutoMix release**. The runtime source contract remains unverified.
 
 ## Implemented and CI-verified
 - Portable C++17 library with no network or media-acquisition code, compiled into the Theos dylib target.
@@ -17,8 +18,9 @@
 - Streaming append validates a complete chunk before mutating the rolling buffer.
 - PCM validation, duration, RMS and peak measurement.
 - Bounded rolling-window PCM ingestion; chunk append is allocation-free after setup.
-- Lightweight 100 Hz energy-onset envelope and autocorrelation BPM estimate (nominal 60–180 BPM range).
-- Coarse first-onset phase estimate and transition candidate validation.
+- 2048-point Hann-windowed spectral-flux onset curve at approximately 100 frames/second, followed by normalized autocorrelation (nominal 60–180 BPM range).
+- Conservative half-time alias handling and folded beat-phase estimate; this is not a downbeat or measure detector.
+- Synthetic 120 BPM and 100 BPM fixtures, including stereo downmix coverage.
 - Phrase-length overlap calculation and beat-phase alignment.
 - Equal-power two-buffer gain rendering.
 - Synthetic 120 BPM fixtures and CMake/CTest CI coverage.
