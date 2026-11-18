@@ -9,7 +9,7 @@ Offline-first AutoMix engine with an optional Spotify/Taurus adapter.
 - Mix two real sources; fading the current source alone is not Automix.
 - Fail safely when the host cannot prepare and render two sources.
 
-See [docs/SMARTMIX_DESIGN.md](docs/SMARTMIX_DESIGN.md) for the Alpha-build findings and roadmap.
+See [docs/SMARTMIX_DESIGN.md](docs/SMARTMIX_DESIGN.md) for the Alpha-build findings and architecture, and [docs/IMPLEMENTATION_STATUS.md](docs/IMPLEMENTATION_STATUS.md) for verified work, limitations, and next engineering gates.
 
 ## Status
 Research and architecture stage. The supplied Alpha IPA has been inspected at binary/string level; runtime behavior still requires on-device validation. Do not commit decrypted IPAs, app binaries, proprietary frameworks, or proprietary model weights.
