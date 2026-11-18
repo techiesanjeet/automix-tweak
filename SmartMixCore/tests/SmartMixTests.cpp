@@ -125,10 +125,18 @@ int main() {
     const auto plan = planTransition(x, y);
     assert(plan.valid && plan.durationSeconds > 0.0 && plan.incomingPlaybackRate == 1.0);
 
+    BeatGrid plannerGrid;
+    plannerGrid.usable = true;
+    plannerGrid.bpm = 120.0;
+    plannerGrid.beatPeriodSeconds = 0.5;
+    plannerGrid.beatConfidence = 0.99;
+    plannerGrid.beatsPerBar = 4;
+    plannerGrid.beatTimesSeconds = {2.0, 2.5, 3.0, 3.5, 4.0};
+    plannerGrid.downbeatTimesSeconds = {2.0, 4.0, 6.0};
     Track xDownbeat = x;
     Track yDownbeat = y;
-    assert(applyBeatGridToTrack(beatGrid, xDownbeat));
-    assert(applyBeatGridToTrack(beatGrid, yDownbeat));
+    assert(applyBeatGridToTrack(plannerGrid, xDownbeat));
+    assert(applyBeatGridToTrack(plannerGrid, yDownbeat));
     assert(std::abs(xDownbeat.analysis.bpm - 120.0) < 1e-6);
     const auto downbeatPlan = planTransition(xDownbeat, yDownbeat);
     assert(downbeatPlan.valid && downbeatPlan.beatsPerBar == 4);
