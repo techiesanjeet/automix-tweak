@@ -47,8 +47,6 @@ extern "C" int SMBetaPipelineInspect(SMBetaPipelineInfo *info) {
     }
 
     if (canReadAhead) info->canReadAhead = canReadAhead() ? 1 : 0;
-    if (processorAttached) {
-        info->nullContextProcessorAttached = processorAttached(nullptr) ? 1 : 0;
-    }
+    info->processorAttachedQueryAvailable = processorAttached ? 1 : 0;
     return 1;
 }
