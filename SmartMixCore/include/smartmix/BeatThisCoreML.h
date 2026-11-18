@@ -25,6 +25,17 @@ int SMBeatThisPredict(SMBeatThisModel *model,
                       float *beatLogits,
                       float *downbeatLogits);
 
+// Worker-only convenience API: extracts the pinned Beat This log-mel frontend
+// from mono 22050 Hz PCM and pads the spectrogram to one 1500-frame model chunk.
+// Padding is limited to the upstream six-frame overlap border.
+int SMBeatThisPredictMonoChunk(SMBeatThisModel *model,
+                               const float *mono22050,
+                               size_t audioFrames,
+                               size_t leftPadFrames,
+                               size_t rightPadFrames,
+                               float *beatLogits,
+                               float *downbeatLogits);
+
 #ifdef __cplusplus
 }
 #endif
