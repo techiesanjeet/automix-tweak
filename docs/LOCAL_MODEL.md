@@ -26,9 +26,16 @@ Use the official CPJKU Beat This! small0 checkpoint as the first on-device ML co
 
 The model asset must be bundled with the tweak/app or installed by an explicit user-controlled package step. There must be no model download, cloud inference, telemetry upload, or transition-plan request during playback. If the model asset is missing or inference fails, use the existing deterministic DSP fallback and lower the transition confidence.
 
-## Platform compatibility
+## Primary device and deployment strategy
 
-The current Theos Makefile targets iOS 14. Keep the model runtime behind a narrow interface. Use Core ML where the selected model format and deployment target are supported; retain the C++ DSP fallback for unsupported iOS versions and devices. Do not raise the minimum iOS version until the compiled model and target devices are tested.
+Primary validation device supplied by the user: **iPhone 16 Pro running iOS 27.2.1**.
+
+- Treat this as the first performance, audio-routing, thermal, and real-playback validation target—not as the minimum deployment version.
+- Prefer a Core ML model package for on-device inference on this device, with compute-unit selection benchmarked rather than assuming Neural Engine-only execution is always fastest or most compatible.
+- Keep model invocation behind a small C++/Objective-C++ adapter so the DSP core does not depend directly on Core ML.
+- Keep the existing Theos deployment target at iOS 14.0 for now. Add availability checks and retain the DSP fallback on older supported systems; only raise the minimum if a measured model/runtime requirement makes it unavoidable.
+- Build against the installed current Xcode/iOS SDK, then verify the actual tweak injection, model loading, audio session behavior, and inference latency on the supplied iOS 27.2.1 device.
+- Benchmark sustained inference while Taurus is streaming, including thermal throttling, memory pressure, battery drain, route changes, interruptions, and background/foreground transitions.
 
 ## Validation gates before enabling it by default
 
