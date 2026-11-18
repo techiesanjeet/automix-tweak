@@ -1,5 +1,6 @@
 #include "smartmix/SmartMixBridge.h"
 #include "smartmix/SmartMix.hpp"
+#include "smartmix/BeatThisPostprocessor.hpp"
 #include <algorithm>
 #include <cstdio>
 #include <cstring>
@@ -68,6 +69,30 @@ extern "C" double SMObservedSeconds(void *handle) {
 extern "C" void SMDestroyStreamingAnalyzer(void *handle) {
     delete static_cast<smartmix::StreamingAnalyzer *>(handle);
 }
+extern "C" int SMApplyBeatThisLogitsToTrack(
+    const float *beatLogits, const float *downbeatLogits,
+    uint64_t frameCount, uint64_t validStartFrame, uint64_t validEndFrame,
+    double frameRate, SMTrack *track) {
+    if (!beatLogits || !downbeatLogits || !track ||
+        frameCount > static_cast<uint64_t>(SIZE_MAX) ||
+        validStartFrame > static_cast<uint64_t>(SIZE_MAX) ||
+        validEndFrame > static_cast<uint64_t>(SIZE_MAX)) return 0;
+    try {
+        smartmix::Track updated = fromC(*track);
+        smartmix::BeatGrid grid;
+        if (!smartmix::postprocessBeatThisLogits(
+                beatLogits, downbeatLogits,
+                static_cast<std::size_t>(frameCount),
+                static_cast<std::size_t>(validStartFrame),
+                static_cast<std::size_t>(validEndFrame), frameRate, grid) ||
+            !smartmix::applyBeatGridToTrack(grid, updated)) return 0;
+        toC(updated.analysis, &track->analysis);
+        track->firstDownbeatSeconds = updated.firstDownbeatSeconds;
+        track->beatsPerBar = updated.beatsPerBar;
+        return 1;
+    } catch (...) { return 0; }
+}
+
 extern "C" int SMPlanTransition(const SMTrack *outgoing,const SMTrack *incoming,
                                   double maxTempoRatio,unsigned bars,SMPlan *result) {
     if (!outgoing || !incoming || !result) return 0;
