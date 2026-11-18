@@ -123,6 +123,17 @@ int main() {
     assert(!planTransition(x, y, 1.0, 8).valid);
     assert(!planTransition(x, y, 1.08, 0).valid);
 
+    // A faster playback rate consumes more incoming-source seconds than
+    // transition wall-clock seconds; reject a buffer that would run dry.
+    Track slowerIncoming = y;
+    slowerIncoming.analysis.bpm = 110.0;
+    slowerIncoming.analysis.beatPeriodSeconds = 60.0 / 110.0;
+    slowerIncoming.analysis.durationSeconds = 17.2;
+    assert(!planTransition(x, slowerIncoming, 1.1, 8).valid);
+    slowerIncoming.analysis.durationSeconds = 18.0;
+    const auto rateAdjustedPlan = planTransition(x, slowerIncoming, 1.1, 8);
+    assert(rateAdjustedPlan.valid && rateAdjustedPlan.incomingPlaybackRate > 1.0);
+
     std::cout << "SmartMix DSP tests passed; BPM=" << analysis.bpm
               << " confidence=" << analysis.beatConfidence << "\n";
 }
