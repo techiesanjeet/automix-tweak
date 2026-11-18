@@ -32,23 +32,15 @@ The engine must never download a duplicate song from another service. Streaming 
 - Never block the audio callback waiting for network data, a model, a mutex, or an incoming deck.
 - The current StreamingAnalyzer accepts PCM chunks on one serialized non-real-time worker and keeps a bounded rolling window. analyzeLatest() allocates a snapshot, so it is explicitly not a render-callback API.
 
-## Current repository code review
+## Current implementation state
 
-### AutoMixEngine.mm
-The hook calls the original AudioUnitRender and applies a time-varying gain to its output. It does not render or sum a second source. It can create a fade/dip curve, but not a genuine two-track transition.
+The active `AutoMixEngine.mm` is deliberately playback-neutral. It installs only a diagnostic status surface and does not hook AudioUnit rendering, capture decoded PCM, or modify playback. The portable C++ core is linked into the dylib through a stable C ABI.
 
-Risks to fix:
-- shared UI/audio-thread state lacks a complete synchronization strategy;
-- output format is assumed to be Float32 and cached against one AudioUnit;
-- per-sample trigonometric gain is unnecessary real-time work;
-- preview modulates the current song rather than rendering an outgoing/incoming pair.
+The analyzer now computes a Hann-windowed, 2048-point spectral-flux curve at approximately 100 frames/second and estimates tempo with normalized autocorrelation. It folds the onset curve over the estimated beat period to produce a beat-phase candidate. This is a stronger onset signal than broadband RMS deltas, but it remains a lightweight DSP heuristic: it does not identify downbeats, musical bars, sections, keys, or vocal overlap.
 
-### AutoMixV2/AutoMixEngineV2.mm
-V2 makes the two-deck requirement explicit and applies complementary equal-power gains. However, it does not create the second deck or prove that the host can render two tracks simultaneously. Its shared frame counter assumes callbacks from the two decks behave in a way that must be validated; callbacks may not arrive in lockstep.
+The planner validates tempo ratio, phrase duration, beat phase and available-track bounds. The renderer mixes two already-decoded, same-format PCM buffers with equal-power gains. Neither planner nor renderer is connected to Taurus yet. Streaming analysis allocates its snapshot during analysis and must remain on a serialized worker, never the real-time callback.
 
-Treat V2 as a DSP experiment, not proof of a usable Spotify dual-deck API.
-
-## Current integration progress\n\nThe portable core and its C ABI bridge are now included in the Theos dylib source list. The bridge is callable by a future Objective-C++ adapter and is covered by the CMake test target. This is build integration only: the existing `AutoMixEngine.mm` does not yet call the bridge, does not tap Taurus decoded PCM, and does not obtain or schedule a second deck. No live playback path is enabled by this change.\n\n## Proposed architecture
+## Proposed architecture
 
     SmartMixCore/
       Audio/       PCMBuffer, AudioFormat
