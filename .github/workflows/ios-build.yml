@@ -5,6 +5,7 @@ on:
     branches: ["**"]
     paths:
       - "AutoMixEngine.mm"
+      - "BeatThisCoreML.mm"
       - "fishhook.c"
       - "fishhook.h"
       - "Makefile"
@@ -21,6 +22,60 @@ jobs:
       - name: Check out source
         uses: actions/checkout@v4
 
+      - name: Cache converted Beat This Core ML model
+        id: model-cache
+        uses: actions/cache@v4
+        with:
+          path: model-build/BeatThisSmall0.mlpackage
+          key: beat-this-small0-6074be2c4d490c5f6101fcc374a1ec72ae93456e23bb6019783b849f5dc7d47b-torch250-coremltools830-v1
+
+      - name: Set up Python
+        if: steps.model-cache.outputs.cache-hit != 'true'
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Check out pinned Beat This source
+        if: steps.model-cache.outputs.cache-hit != 'true'
+        run: |
+          git clone --filter=blob:none https://github.com/CPJKU/beat_this.git beat_this_upstream
+          git -C beat_this_upstream fetch --depth=1 origin b95c8ab0c58c2d9fcfd40508ae8dffbc05ac4f5c
+          git -C beat_this_upstream checkout --detach FETCH_HEAD
+
+      - name: Install model conversion dependencies
+        if: steps.model-cache.outputs.cache-hit != 'true'
+        run: |
+          python -m pip install --upgrade pip
+          python -m pip install "numpy<2" "torch==2.5.0" "torchaudio==2.5.0" "coremltools==8.3.0" einops rotary-embedding-torch soxr
+
+      - name: Download pinned Beat This checkpoint
+        if: steps.model-cache.outputs.cache-hit != 'true'
+        run: |
+          mkdir -p model-build
+          curl --fail --location --retry 3 \
+            "https://cloud.cp.jku.at/public.php/dav/files/7ik4RrBKTS273gp/small0.ckpt" \
+            --output model-build/small0.ckpt
+
+      - name: Convert and verify Core ML model
+        if: steps.model-cache.outputs.cache-hit != 'true'
+        env:
+          PYTHONPATH: beat_this_upstream
+        run: |
+          python tools/export_beat_this_coreml.py \
+            --checkpoint model-build/small0.ckpt \
+            --expected-sha256 6074be2c4d490c5f6101fcc374a1ec72ae93456e23bb6019783b849f5dc7d47b \
+            --output model-build/BeatThisSmall0.mlpackage
+
+      - name: Compile model and prepare Theos resources
+        run: |
+          set -euo pipefail
+          mkdir -p model-build/compiled Resources
+          xcrun coremlcompiler compile \
+            model-build/BeatThisSmall0.mlpackage model-build/compiled
+          test -d model-build/compiled/BeatThisSmall0.mlmodelc
+          rm -rf Resources/BeatThisSmall0.mlmodelc
+          cp -R model-build/compiled/BeatThisSmall0.mlmodelc Resources/BeatThisSmall0.mlmodelc
+
       - name: Cache Theos and SDKs
         uses: actions/cache@v4
         with:
@@ -30,26 +85,30 @@ jobs:
       - name: Install Theos and iOS SDKs
         uses: Randomblock1/theos-action@v1
 
-      - name: Build arm64 iOS dylib
+      - name: Build and stage arm64 iOS library and model bundle
         run: |
           set -o pipefail
           make clean
           make messages=yes
+          make stage
 
-      - name: Verify produced dylib
+      - name: Verify dylib and bundled model
         run: |
           set -euo pipefail
           DYLIB="$(find . -type f -name 'AutoMixEngine.dylib' -print -quit)"
+          BUNDLE=".theos/_/Library/Application Support/AutoMix/SmartMixResources.bundle"
           test -n "$DYLIB"
+          test -d "$BUNDLE/BeatThisSmall0.mlmodelc"
           file "$DYLIB"
           xcrun --sdk iphoneos lipo -info "$DYLIB" || lipo -info "$DYLIB"
           mkdir -p "$RUNNER_TEMP/automix-build"
           cp "$DYLIB" "$RUNNER_TEMP/automix-build/AutoMixEngine.dylib"
+          cp -R "$BUNDLE" "$RUNNER_TEMP/automix-build/SmartMixResources.bundle"
 
-      - name: Upload build artifact
+      - name: Upload arm64 dylib and local Core ML bundle
         uses: actions/upload-artifact@v4
         with:
-          name: AutoMixEngine-ios-arm64-dylib
-          path: ${{ runner.temp }}/automix-build/AutoMixEngine.dylib
+          name: AutoMixEngine-ios-arm64-with-BeatThis-CoreML
+          path: ${{ runner.temp }}/automix-build
           if-no-files-found: error
           retention-days: 14
