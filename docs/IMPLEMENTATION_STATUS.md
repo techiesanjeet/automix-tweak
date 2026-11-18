@@ -9,7 +9,8 @@
 - Added a macOS 15 / Theos arm64 build workflow that installs Theos + iOS SDKs, compiles the dylib, verifies its architecture, and uploads the artifact.
 - Removed the old `AudioUnitRender` fade-only hook from the active engine. That hook only attenuated the current song, used unsynchronized shared state, and was not a real two-track AutoMix transition.
 - The current UI is an honest status/diagnostic surface. It reports that playback integration is pending and does not alter Taurus audio.
-- The default-branch diagnostic snapshot completed a successful Theos arm64 build and artifact upload. The feature branch's spectral-flux DSP, prepared-PCM substitution slot, and sinc varispeed resampler completed a successful Theos arm64 build at commit `5d1fabb`. The later Core ML runtime adapter and compiled model resource-bundle packaging are awaiting their first successful end-to-end Theos build.
+- The feature branch completed a successful end-to-end Theos arm64 build with the compiled Beat This model bundle at commit `87d6801`; the artifact contains an arm64 dylib and `SmartMixResources.bundle`. The native C++ test workflow and model-export/parity workflow also passed at commit `69da94f`.
+- The latest branch changes add rootful and rootless Debian packaging plus a Taurus/Spotify injection filter. Their package build and contents verification are currently running in GitHub Actions; do not treat the packages as installable until that run succeeds.
 - This is still a safe diagnostic build target, **not a functioning AutoMix release**. The runtime source contract remains unverified.
 
 ## Implemented and CI-verified
@@ -26,9 +27,9 @@
 - Phrase-length overlap calculation, beat-phase fallback, and model-derived downbeat/meter-aware phrase alignment.
 - Equal-power two-buffer gain rendering.
 - Worker-side 32-tap windowed-sinc sample-rate conversion and varispeed; this changes pitch and is not pitch-preserving time stretch.
-- Local Beat This log-mel preprocessing, beat/downbeat logit postprocessing, and conservative 3/4 or 4/4 meter inference.
-- Beta 0.60.7 source processor callback ABI is inferred from ARM64 disassembly; the non-invasive runtime probe reports source format and read-ahead capability without registering a processor.
-- Objective-C++ Core ML adapter loads the compiled model locally, accepts mono 22050 Hz chunks through the native spectrogram frontend, and passes beat/downbeat logits through the C bridge into meter-aware planning.
+- Local Beat This log-mel preprocessing, beat/downbeat logit postprocessing, and conservative 3/4 or 4/4 meter inference. Sparse mel-filter bounds skip zero-weight FFT bins without changing the numerical frontend contract.
+- Beta 0.60.7 source processor callback ABI is inferred from ARM64 disassembly; the non-invasive runtime probe reports source format and read-ahead capability without registering a processor. Static call-site analysis shows `SourcePrefix`/`SourceAheadFrames` are used for current-source Sing capture metadata, not as a next-track PCM feed.
+- Objective-C++ Core ML adapter loads the compiled model locally, accepts mono 22050 Hz chunks through the native spectrogram frontend, and passes beat/downbeat logits through the C bridge into meter-aware planning. The status UI self-test now exercises the complete native log-mel + Core ML inference path on a synthetic tone.
 - Planner can align both transition ends to model-derived downbeats when both tracks have reliable, matching meter; it falls back to beat-phase alignment otherwise and skips known meter mismatches.
 - Fixed-capacity `PreparedPCMSubstitution` slot: worker-side preparation, lock-free state publication, exact source-epoch/frame scheduling, bounded callback memcpy, deterministic original-stream rejoin, and cancellation on discontinuity.
 - Tests for 120/100 BPM, stereo downmix, playback-rate-aware incoming buffer bounds, malformed metadata, native Beat This frontend output, beat/downbeat postprocessing and meter inference, C bridge track updates, resampler frequency/varispeed, prepared PCM boundary crossing, exact rejoin, late start, epoch mismatch, and cancellation.
@@ -53,7 +54,7 @@ This remains a DSP prototype, not an Apple Music AutoMix replacement:
 - No Taurus runtime source-processor adapter has been implemented or device-tested.
 
 ## Next engineering gates
-1. Establish the exact Beta source-processor contract: callback signature, source lifetime, buffer ownership, frame clock, format, read-ahead semantics, and cancellation behavior.
+1. Establish the remaining Beta source-processor runtime contract: callback ownership/chaining, source lifetime, buffer ownership, frame clock, format, and cancellation behavior. Static evidence indicates the examined read-ahead API is current-source metadata, not a next-track feed.
 2. Verify whether Taurus exposes the next queued track's decoded PCM through its normal streaming path early enough to render a transition locally. Do not fetch substitute audio or use Alpha's YouTube acquisition path.
 3. Implement a Beta-specific adapter that captures bounded PCM off the real-time callback, pre-renders the transition, inserts it at a verified source-clock position, and rejoins the original stream at an exact frame boundary. Always retain a deterministic passthrough fallback.
 4. Finish the Theos resource-bundle build, then benchmark the bundled Core ML model on iPhone 16 Pro / iOS 27.2.1. Model export and upstream parity are already verified in CI; no playback-time cloud inference or model download is permitted.
