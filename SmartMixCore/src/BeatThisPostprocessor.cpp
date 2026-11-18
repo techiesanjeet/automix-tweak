@@ -96,6 +96,19 @@ bool postprocessBeatThisLogits(const float* beatLogits,
                     output.downbeatTimesSeconds.end()),
         output.downbeatTimesSeconds.end());
 
+    if (!beatFrames.empty()) {
+        double confidenceSum = 0.0;
+        for (double frame : beatFrames) {
+            const std::size_t index = static_cast<std::size_t>(std::llround(frame));
+            const double logit = static_cast<double>(beatLogits[index]);
+            const double probability = logit >= 0.0
+                ? 1.0 / (1.0 + std::exp(-logit))
+                : std::exp(logit) / (1.0 + std::exp(logit));
+            confidenceSum += probability;
+        }
+        output.beatConfidence = confidenceSum /
+            static_cast<double>(beatFrames.size());
+    }
     if (output.beatTimesSeconds.size() < 2) return true;
     std::vector<double> intervals;
     intervals.reserve(output.beatTimesSeconds.size() - 1);
@@ -150,7 +163,40 @@ bool postprocessBeatThisLogits(const float* beatLogits,
     }
     output.usable = std::isfinite(output.bpm) &&
         output.bpm >= 60.0 && output.bpm <= 180.0 &&
-        output.beatTimesSeconds.size() >= 4;
+        output.beatConfidence >= 0.08 && output.beatTimesSeconds.size() >= 4;
+    return true;
+}
+
+bool applyBeatGridToTrack(const BeatGrid& grid, Track& track) {
+    if (!grid.usable || grid.beatTimesSeconds.size() < 4 ||
+        !std::isfinite(grid.bpm) || !std::isfinite(grid.beatPeriodSeconds) ||
+        !std::isfinite(grid.beatConfidence) || grid.bpm < 60.0 ||
+        grid.bpm > 180.0 || grid.beatPeriodSeconds <= 0.0 ||
+        grid.beatConfidence < 0.08 || !std::isfinite(track.analysis.durationSeconds) ||
+        !std::isfinite(track.analysis.rms) || track.analysis.durationSeconds <= 8.0 ||
+        track.analysis.rms <= 1e-5) return false;
+
+    const double firstBeat = grid.beatTimesSeconds.front();
+    if (!std::isfinite(firstBeat) || firstBeat < 0.0 ||
+        firstBeat >= track.analysis.durationSeconds) return false;
+
+    track.analysis.bpm = grid.bpm;
+    track.analysis.beatPeriodSeconds = grid.beatPeriodSeconds;
+    track.analysis.firstBeatSeconds = firstBeat;
+    track.analysis.beatConfidence = grid.beatConfidence;
+    track.analysis.usable = true;
+
+    if ((grid.beatsPerBar == 3 || grid.beatsPerBar == 4) &&
+        !grid.downbeatTimesSeconds.empty()) {
+        const double firstDownbeat = grid.downbeatTimesSeconds.front();
+        if (!std::isfinite(firstDownbeat) || firstDownbeat < 0.0 ||
+            firstDownbeat >= track.analysis.durationSeconds) return false;
+        track.firstDownbeatSeconds = firstDownbeat;
+        track.beatsPerBar = grid.beatsPerBar;
+    } else {
+        track.firstDownbeatSeconds = 0.0;
+        track.beatsPerBar = 0;
+    }
     return true;
 }
 
