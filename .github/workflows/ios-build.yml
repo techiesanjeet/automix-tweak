@@ -89,35 +89,47 @@ jobs:
       - name: Install Theos and iOS SDKs
         uses: Randomblock1/theos-action@v1
 
-      - name: Build and stage arm64 iOS library and model bundle
-        run: |
-          set -o pipefail
-          make clean
-          make messages=yes
-          make stage
-
-      - name: Verify dylib and bundled model
+      - name: Build rootful arm64 diagnostic package
         run: |
           set -euo pipefail
+          make clean
+          make messages=yes package
+          ROOTFUL_DEB="$(find packages -maxdepth 1 -name '*.deb' -print -quit)"
+          test -n "$ROOTFUL_DEB"
+          mkdir -p "$RUNNER_TEMP/automix-packages"
+          cp "$ROOTFUL_DEB" "$RUNNER_TEMP/automix-packages/AutoMixEngine-rootful.deb"
+
+      - name: Build rootless arm64 diagnostic package
+        run: |
+          set -euo pipefail
+          THEOS_PACKAGE_SCHEME=rootless make clean
+          THEOS_PACKAGE_SCHEME=rootless make messages=yes package
+          ROOTLESS_DEB="$(find packages -maxdepth 1 -name '*.deb' -print -quit)"
+          test -n "$ROOTLESS_DEB"
+          cp "$ROOTLESS_DEB" "$RUNNER_TEMP/automix-packages/AutoMixEngine-rootless.deb"
+
+      - name: Verify packages and local model bundle
+        run: |
+          set -euo pipefail
+          for DEB in "$RUNNER_TEMP"/automix-packages/*.deb; do
+            test -s "$DEB"
+            dpkg-deb --info "$DEB"
+            dpkg-deb --contents "$DEB"
+          done
           DYLIB="$(find . -type f -name 'AutoMixEngine.dylib' -print -quit)"
-          BUNDLE="$(find . -path '*/Library/Application Support/AutoMix/SmartMixResources.bundle' -type d -print -quit)"
-          if [ -z "$BUNDLE" ]; then
-            BUNDLE="$(find . -type d -name 'SmartMixResources.bundle' -print -quit)"
-          fi
+          BUNDLE="$(find . -type d -name 'SmartMixResources.bundle' -print -quit)"
           test -n "$DYLIB"
           test -n "$BUNDLE"
           test -d "$BUNDLE/BeatThisSmall0.mlmodelc"
-          echo "Verified model bundle: $BUNDLE"
           file "$DYLIB"
           xcrun --sdk iphoneos lipo -info "$DYLIB" || lipo -info "$DYLIB"
-          mkdir -p "$RUNNER_TEMP/automix-build"
-          cp "$DYLIB" "$RUNNER_TEMP/automix-build/AutoMixEngine.dylib"
-          cp -R "$BUNDLE" "$RUNNER_TEMP/automix-build/SmartMixResources.bundle"
+          cp "$DYLIB" "$RUNNER_TEMP/automix-packages/AutoMixEngine.dylib"
+          cp -R "$BUNDLE" "$RUNNER_TEMP/automix-packages/SmartMixResources.bundle"
 
-      - name: Upload arm64 dylib and local Core ML bundle
+      - name: Upload installable packages and raw build
         uses: actions/upload-artifact@v4
         with:
-          name: AutoMixEngine-ios-arm64-with-BeatThis-CoreML
-          path: ${{ runner.temp }}/automix-build
+          name: AutoMixEngine-ios-arm64-packages-and-CoreML
+          path: ${{ runner.temp }}/automix-packages
           if-no-files-found: error
           retention-days: 14
