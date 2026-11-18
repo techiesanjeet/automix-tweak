@@ -4,6 +4,7 @@
 #include "smartmix/BeatThisCoreML.h"
 
 #include <cmath>
+#include <dlfcn.h>
 #include <cstring>
 #include <new>
 
@@ -58,13 +59,40 @@ extern "C" SMBeatThisModel *SMBeatThisCreateFromPath(const char *compiledModelPa
 
 extern "C" SMBeatThisModel *SMBeatThisCreateInstalled(void) {
     @autoreleasepool {
-        NSString *bundlePath =
-            @"/Library/Application Support/AutoMix/SmartMixResources.bundle";
-        NSBundle *bundle = [NSBundle bundleWithPath:bundlePath];
-        NSURL *modelURL = [bundle URLForResource:@"BeatThisSmall0"
-                                   withExtension:@"mlmodelc"];
-        if (!modelURL) return nullptr;
-        return SMBeatThisCreateFromPath(modelURL.path.UTF8String);
+        NSMutableArray<NSString *> *candidates = [NSMutableArray array];
+        Dl_info imageInfo = {};
+        if (dladdr((void *)SMBeatThisCreateInstalled, &imageInfo) &&
+            imageInfo.dli_fname) {
+            NSString *imagePath = [NSString stringWithUTF8String:imageInfo.dli_fname];
+            NSString *imageDirectory = imagePath.stringByDeletingLastPathComponent;
+            [candidates addObject:[imageDirectory
+                stringByAppendingPathComponent:@"SmartMixResources.bundle"]];
+            [candidates addObject:[[imageDirectory
+                stringByAppendingPathComponent:@"../Application Support/AutoMix"]
+                stringByAppendingPathComponent:@"SmartMixResources.bundle"]];
+        }
+        [candidates addObject:
+            @"/Library/Application Support/AutoMix/SmartMixResources.bundle"];
+        [candidates addObject:
+            @"/var/jb/Library/Application Support/AutoMix/SmartMixResources.bundle"];
+        NSString *appBundle = NSBundle.mainBundle.bundlePath;
+        [candidates addObject:[appBundle
+            stringByAppendingPathComponent:@"SmartMixResources.bundle"]];
+        [candidates addObject:[[appBundle
+            stringByAppendingPathComponent:@"Frameworks"]
+            stringByAppendingPathComponent:@"SmartMixResources.bundle"]];
+
+        NSFileManager *files = NSFileManager.defaultManager;
+        for (NSString *bundlePath in candidates) {
+            BOOL isDirectory = NO;
+            if (![files fileExistsAtPath:bundlePath isDirectory:&isDirectory] ||
+                !isDirectory) continue;
+            NSBundle *bundle = [NSBundle bundleWithPath:bundlePath];
+            NSURL *modelURL = [bundle URLForResource:@"BeatThisSmall0"
+                                       withExtension:@"mlmodelc"];
+            if (modelURL) return SMBeatThisCreateFromPath(modelURL.path.UTF8String);
+        }
+        return nullptr;
     }
 }
 
