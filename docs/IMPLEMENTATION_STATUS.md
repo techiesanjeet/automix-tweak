@@ -10,7 +10,7 @@
 - Removed the old `AudioUnitRender` fade-only hook from the active engine. That hook only attenuated the current song, used unsynchronized shared state, and was not a real two-track AutoMix transition.
 - The current UI is an honest status/diagnostic surface. It reports that playback integration is pending and does not alter Taurus audio.
 - The feature branch completed a successful end-to-end Theos arm64 build with the compiled Beat This model bundle at commit `87d6801`; the artifact contains an arm64 dylib and `SmartMixResources.bundle`. The native C++ test workflow and model-export/parity workflow also passed at commit `69da94f`.
-- Rootful and rootless Debian packages now both build and pass payload verification in GitHub Actions run `44264035168`. Both contain the arm64 dylib, Taurus/Spotify injection filter, and local `BeatThisSmall0.mlmodelc` resource bundle. The package metadata declares the substrate/ElleKit dependency. This is a diagnostic package, not a live AutoMix release.
+- Rootful and rootless Debian packages now both build and pass payload verification in GitHub Actions run `44265182450` (including the planar PCM adapter and corrected source-probe reporting). Both contain the arm64 dylib, Taurus/Spotify injection filter, and local `BeatThisSmall0.mlmodelc` resource bundle. The package metadata declares the substrate/ElleKit dependency. This is a diagnostic package, not a live AutoMix release.
 - This is still a safe diagnostic build target, **not a functioning AutoMix release**. The runtime source contract remains unverified.
 
 ## Implemented and CI-verified
