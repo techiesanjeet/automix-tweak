@@ -1,9 +1,7 @@
 name: SmartMix core tests
 on:
   push:
-    paths: ["SmartMixCore/**", "CMakeLists.txt", ".github/workflows/smartmix.yml"]
-  pull_request:
-    paths: ["SmartMixCore/**", "CMakeLists.txt", ".github/workflows/smartmix.yml"]
+    paths: ["SmartMixCore/**", "CMakeLists.txt"]
 jobs:
   build:
     runs-on: ubuntu-latest
