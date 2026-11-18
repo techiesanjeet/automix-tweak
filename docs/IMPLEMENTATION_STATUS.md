@@ -9,7 +9,7 @@
 - Added a macOS 15 / Theos arm64 build workflow that installs Theos + iOS SDKs, compiles the dylib, verifies its architecture, and uploads the artifact.
 - Removed the old `AudioUnitRender` fade-only hook from the active engine. That hook only attenuated the current song, used unsynchronized shared state, and was not a real two-track AutoMix transition.
 - The current UI is an honest status/diagnostic surface. It reports that playback integration is pending and does not alter Taurus audio.
-- The default-branch diagnostic snapshot completed a successful Theos arm64 build and artifact upload. The feature branch's spectral-flux DSP, prepared-PCM substitution slot, sinc varispeed resampler, and C++17 Theos flag fix completed a successful Theos arm64 build and artifact upload at commit `5d1fabb`.
+- The default-branch diagnostic snapshot completed a successful Theos arm64 build and artifact upload. The feature branch's spectral-flux DSP, prepared-PCM substitution slot, sinc varispeed resampler, and C++17 Theos flag fix completed a successful Theos arm64 build and artifact upload at commit `5d1fabb`. The later Core ML resource-bundle/runtime adapter is still awaiting its first successful end-to-end Theos build.
 - This is still a safe diagnostic build target, **not a functioning AutoMix release**. The runtime source contract remains unverified.
 
 ## Implemented and CI-verified
@@ -25,6 +25,7 @@
 - Equal-power two-buffer gain rendering.
 - Worker-side 32-tap windowed-sinc sample-rate conversion and varispeed; this changes pitch and is not pitch-preserving time stretch.
 - Local Beat This log-mel preprocessing, beat/downbeat logit postprocessing, and conservative 3/4 or 4/4 meter inference.
+- Objective-C++ Core ML adapter loads the compiled model locally, accepts mono 22050 Hz chunks through the native spectrogram frontend, and passes beat/downbeat logits through the C bridge into meter-aware planning.
 - Planner can align both transition ends to model-derived downbeats when both tracks have reliable, matching meter; it falls back to beat-phase alignment otherwise and skips known meter mismatches.
 - Fixed-capacity `PreparedPCMSubstitution` slot: worker-side preparation, lock-free state publication, exact source-epoch/frame scheduling, bounded callback memcpy, deterministic original-stream rejoin, and cancellation on discontinuity.
 - Tests for 120/100 BPM, stereo downmix, playback-rate-aware incoming buffer bounds, malformed metadata, resampler frequency/varispeed, prepared PCM boundary crossing, exact rejoin, late start, epoch mismatch, and cancellation.
