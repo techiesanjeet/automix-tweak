@@ -3,21 +3,52 @@
 ## Purpose
 Define the evidence required before implementing a Beta-specific PCM substitution adapter. This document intentionally does not declare private function prototypes or call undocumented functions based only on symbol names.
 
-## Static evidence available
-The supplied Taurus 0.60.7 Beta binary contains these source-pipeline names:
+## Static evidence from the supplied Beta binary
 
-- SGAudioPipelineAvailable
-- SGAudioPipelineTapped
-- SGAudioPipelineSetSourceProcessor
-- SGAudioPipelinePull
-- SGAudioPipelinePullOriginal
-- SGAudioPipelineSourceFormat
-- SGAudioPipelineSourcePrefix
-- SGAudioPipelineSourceAheadFrames
-- SGAudioPipelineSourceCanReadAhead
-- SGAudioPipelineRegister
+The ARM64 `spotifyglass.dylib` from Taurus 0.60.7 Beta was extracted and disassembled. The following prototypes are high-confidence static inferences from the function bodies and call register setup; they have not yet been runtime-invoked on the iPhone.
 
-These names suggest a source processor with original-source pull and read-ahead concepts. They do not establish exact signatures, calling convention, ownership, lifetime, threading, or whether read-ahead means next-track audio versus additional frames from the current source.
+```cpp
+using SGAudioPipelineSourceProcessor =
+    OSStatus (*)(void *context,
+                 UInt32 requestedFrames,
+                 AudioBufferList *ioData,
+                 const AudioTimeStamp *timeStamp);
+
+bool SGAudioPipelineSetSourceProcessor(
+    SGAudioPipelineSourceProcessor callback,
+    void *context);
+
+bool SGAudioPipelineClearSourceProcessor(void *context);
+bool SGAudioPipelineSourceProcessorAttached(void *context);
+
+OSStatus SGAudioPipelinePull(
+    UInt32 requestedFrames,
+    AudioBufferList *ioData,
+    const AudioTimeStamp *timeStamp);
+
+OSStatus SGAudioPipelinePullOriginal(
+    UInt32 requestedFrames,
+    AudioBufferList *ioData,
+    const AudioTimeStamp *timeStamp);
+
+bool SGAudioPipelineSourceFormat(AudioStreamBasicDescription *outFormat);
+bool SGAudioPipelineSourceCanReadAhead(void);
+```
+
+Disassembly evidence:
+
+- `SetSourceProcessor` stores its first argument as the callback and second as the context, then returns a boolean success value.
+- `Pull` forwards the stored context plus its three original arguments to the callback. If no callback is installed, it calls the original-pull path.
+- `ClearSourceProcessor(context)` and `SourceProcessorAttached(context)` compare the supplied context against the currently stored context.
+- `PullOriginal` forwards the requested frame count, `AudioBufferList`, and timestamp into the original AudioUnit render path. The internal `PullOriginalAvailable` helper also has an optional fourth output-frame-count pointer.
+- `SourceFormat` calls `AudioUnitGetProperty(kAudioUnitProperty_StreamFormat)` into the supplied ASBD.
+- `SourceCanReadAhead` checks source-queue support/probe metadata and returns a boolean.
+
+The registration implementation appears to use **one global callback/context slot**, not an evident multi-processor chain. Replacing it could overwrite a host-installed processor. The read-only `SourceProcessorAttached(context)` check only tests that exact context; passing NULL does not enumerate arbitrary attached processors. Therefore the adapter deliberately does not call `SetSourceProcessor` yet.
+
+The setter's internal format gate appears to expect a 44.1 kHz, stereo, 32-bit Float, non-interleaved source. The exact accepted ASBD is still checked at runtime via the read-only probe rather than assumed.
+
+`SourcePrefix` / `SourceAheadFrames` are **not** treated as a decoded next-track API. `SourceCanReadAhead` only reports source-queue capability. The argument/return semantics and source identity for `SourcePrefix` / `SourceAheadFrames` remain unresolved; the adapter does not call them.
 
 ## Required contract (must be measured, not guessed)
 
@@ -66,9 +97,10 @@ The incoming track must be made available by Taurus's normal queue/streaming pip
 
 ## Current conclusion
 - Static symbol evidence: promising.
-- Exact Beta source-processor ABI: unknown.
+- Exact Beta source-processor ABI: callback and pull prototypes inferred from ARM64 disassembly; not runtime-verified.
 - Incoming next-track PCM availability: unknown.
 - Safe frame-clock rejoin: unknown.
+- Single-slot callback ownership/chaining: unresolved; do not install a competing processor.
 - Runtime validation on iPhone 16 Pro / iOS 27.2.1: not performed.
 
 Do not claim the Beta adapter is implemented or working until these unknowns are resolved on the actual target build and device.
@@ -82,3 +114,7 @@ This is valuable architectural evidence that Taurus has used a source-domain PCM
 It does NOT establish that the supplied 0.60.7 Beta binary has the same implementation, exact ABI, queue semantics, or continuous-next-track behavior. The public project documentation describes a later source tree and a different target Spotify build. Do not copy undocumented prototypes or assume binary compatibility. The exact Beta runtime contract and iPhone 16 Pro validation remain required.
 
 Reference: https://github.com/samj-exe/taurus/blob/stable/docs/tweaks.md (Audio and Sing sections).
+
+## Implemented non-invasive probe
+
+`BetaSourceProcessorProbe.mm` resolves and calls only the read-only source-format, read-ahead-capability, and NULL-context-attached queries. The diagnostics UI can report the current ASBD and those flags. It does not register a callback, pull PCM, retain audio buffers, or change playback. The probe must be run while Taurus playback is active to obtain a meaningful source format.
