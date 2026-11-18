@@ -1,5 +1,6 @@
 #include <algorithm>
 #include "smartmix/SmartMix.hpp"
+#include "smartmix/PreparedPCM.hpp"
 #include "smartmix/SmartMixBridge.h"
 #include <cassert>
 #include <cmath>
@@ -141,6 +142,53 @@ int main() {
     slowerIncoming.outroSeconds = 0.0;
     slowerIncoming.energy = std::numeric_limits<double>::quiet_NaN();
     assert(!planTransition(x, slowerIncoming, 1.1, 8).valid);
+
+    // Verify callback-safe prepared PCM substitution, exact frame boundaries,
+    // deterministic rejoin, and cancellation on source discontinuities.
+    PreparedPCMSubstitution prepared(8, 2);
+    const float rendered[8] = {1, 10, 2, 20, 3, 30, 4, 40};
+    assert(prepared.arm(rendered, 4, 2, sampleRate, 7, 100));
+
+    float beforeStart[4] = {-1, -1, -1, -1};
+    assert(!prepared.process(beforeStart, 2, 2, sampleRate, 7, 98));
+    for (float value : beforeStart) assert(value == -1);
+
+    float crossing[8] = {-2, -2, -2, -2, -2, -2, -2, -2};
+    assert(prepared.process(crossing, 4, 2, sampleRate, 7, 98));
+    assert(crossing[0] == -2 && crossing[1] == -2 &&
+           crossing[2] == -2 && crossing[3] == -2);
+    assert(crossing[4] == 1 && crossing[5] == 10 &&
+           crossing[6] == 2 && crossing[7] == 20);
+    assert(prepared.state() == PreparedPCMSubstitution::State::Playing);
+
+    float tail[4] = {-3, -3, -3, -3};
+    assert(prepared.process(tail, 2, 2, sampleRate, 7, 102));
+    assert(tail[0] == 3 && tail[1] == 30 && tail[2] == 4 && tail[3] == 40);
+    assert(prepared.state() == PreparedPCMSubstitution::State::Completed);
+
+    float rejoined[4] = {-4, -4, -4, -4};
+    assert(!prepared.process(rejoined, 2, 2, sampleRate, 7, 104));
+    for (float value : rejoined) assert(value == -4);
+
+    assert(prepared.arm(rendered, 4, 2, sampleRate, 8, 200));
+    float wrongEpoch[4] = {-5, -5, -5, -5};
+    assert(!prepared.process(wrongEpoch, 2, 2, sampleRate, 9, 200));
+    assert(prepared.state() == PreparedPCMSubstitution::State::Cancelled);
+
+    assert(prepared.arm(rendered, 4, 2, sampleRate, 8, 300));
+    prepared.requestCancel();
+    assert(prepared.state() == PreparedPCMSubstitution::State::CancelRequested);
+    float cancelled[4] = {-6, -6, -6, -6};
+    assert(!prepared.process(cancelled, 2, 2, sampleRate, 8, 300));
+    assert(prepared.state() == PreparedPCMSubstitution::State::Cancelled);
+
+    assert(prepared.arm(rendered, 4, 2, sampleRate, 8, 400));
+    float late[4] = {-7, -7, -7, -7};
+    assert(!prepared.process(late, 2, 2, sampleRate, 8, 401));
+    assert(prepared.state() == PreparedPCMSubstitution::State::Cancelled);
+
+    float invalidPCM[2] = {0.0f, std::numeric_limits<float>::infinity()};
+    assert(!prepared.arm(invalidPCM, 1, 2, sampleRate, 8, 500));
 
     std::cout << "SmartMix DSP tests passed; BPM=" << analysis.bpm
               << " confidence=" << analysis.beatConfidence << "\n";
