@@ -1,7 +1,7 @@
 # Beta source-processor integration contract
 
 ## Purpose
-Define the evidence required before implementing a Beta-specific PCM substitution adapter. This document intentionally does not declare private function prototypes or call undocumented functions based only on symbol names.
+Define the evidence required before implementing a Beta-specific PCM substitution adapter. The callback prototypes below are inferred from ARM64 disassembly, not guessed from symbol names; they remain subject to runtime confirmation.
 
 ## Static evidence from the supplied Beta binary
 
@@ -54,15 +54,15 @@ The setter itself checks that the active AudioUnit format is 44.1 kHz and has tw
 
 | Contract item | Evidence required | Safe implementation rule |
 |---|---|---|
-| Registration | Exact symbol/class owner, parameter and return types, registration/unregistration lifecycle | Do not register until exact ABI and lifecycle are confirmed |
-| Processor callback | Exact callback prototype, invocation order, thread and reentrancy | Callback must be bounded, nonblocking and allocation-free |
+| Registration | Callback and context arguments/boolean return are inferred; lifecycle and slot ownership still need runtime confirmation | Do not register until current callback ownership can be preserved |
+| Processor callback | Prototype inferred as `(context, UInt32 frames, AudioBufferList*, AudioTimeStamp*)`; invocation thread/reentrancy still unverified | Callback must be bounded, nonblocking and allocation-free |
 | Source identity | How a source is identified and replaced | Bind captured PCM to a source epoch; invalidate on replacement |
-| PCM format | Sample type, interleaving, channels, sample rate, layout and frame count | Reject unsupported formats; never reinterpret unknown buffers |
+| PCM format | Setter checks 44.1 kHz/two channels; original pull expects two one-channel buffers with four bytes/frame; confirm ASBD flags and bit depth | Reject unsupported formats; never reinterpret unknown buffers |
 | Buffer ownership | Who allocates, owns, retains and releases input/output memory | Copy only into preallocated bounded storage; never retain borrowed pointers |
-| Pull semantics | Whether Pull invokes the original source, and how PullOriginal differs | Preserve exactly-once original pull semantics; no recursive pull |
+| Pull semantics | `Pull` dispatches the installed processor or original path; `PullOriginal` bypasses the processor | Preserve exactly-once original pull semantics; no recursive pull |
 | Read-ahead | Meaning and limits of SourceAheadFrames / SourceCanReadAhead | Do not infer next-track availability from current-source lookahead |
 | Clock | Frame counter domain, reset conditions, timestamp relation and discontinuity handling | Schedule insertion only against a verified source-frame clock |
-| Processor chaining | Ordering relative to existing processors and behavior when one declines | Preserve other processors; deterministic passthrough on decline |
+| Processor chaining | One global callback/context slot is visible; no getter or chain API found | Never replace an existing host processor without a verified chain mechanism |
 | Cancellation | Seek, skip, queue change, interruption, route/format change and teardown | Atomically cancel prepared output and return to original source |
 | Rejoin | Exact original-source frame at which ordinary PCM resumes | Verify continuity at the sample boundary before enabling fades |
 
