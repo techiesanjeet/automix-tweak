@@ -55,7 +55,7 @@ bool PreparedPCMSubstitution::arm(const float* pcm, std::size_t frames,
     if (!state_.compare_exchange_strong(preparing, State::Armed,
                                         std::memory_order_release,
                                         std::memory_order_acquire)) {
-        if (preparing == State::CancelRequested) {
+        if (preparing == State::CancelPreparing) {
             state_.store(State::Cancelled, std::memory_order_release);
         }
         return false;
@@ -69,9 +69,18 @@ void PreparedPCMSubstitution::finishCancelled() noexcept {
 
 void PreparedPCMSubstitution::requestCancel() noexcept {
     State observed = state_.load(std::memory_order_acquire);
-    while (observed == State::Preparing || observed == State::Armed ||
-           observed == State::Playing) {
-        if (state_.compare_exchange_weak(observed, State::CancelRequested,
+    for (;;) {
+        State desired;
+        if (observed == State::Preparing) {
+            // The worker owns the buffer while preparing; only it may publish
+            // Cancelled after its final write has completed.
+            desired = State::CancelPreparing;
+        } else if (observed == State::Armed || observed == State::Playing) {
+            desired = State::CancelRequested;
+        } else {
+            return;
+        }
+        if (state_.compare_exchange_weak(observed, desired,
                                          std::memory_order_acq_rel,
                                          std::memory_order_acquire)) return;
     }
@@ -87,7 +96,8 @@ bool PreparedPCMSubstitution::process(float* output, std::size_t frames,
         finishCancelled();
         return false;
     }
-    if (current != State::Armed && current != State::Playing) return false;
+    if (current == State::CancelPreparing ||
+        (current != State::Armed && current != State::Playing)) return false;
 
     if (channels != channels_ ||
         frames > std::numeric_limits<std::size_t>::max() / channels ||
