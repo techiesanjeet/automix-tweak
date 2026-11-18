@@ -21,6 +21,8 @@ typedef struct SMTrack {
     double outroSeconds;
     double energy;
     int vocalsLikely;
+    double firstDownbeatSeconds;
+    unsigned beatsPerBar;
 } SMTrack;
 
 typedef struct SMPlan {
@@ -33,6 +35,7 @@ typedef struct SMPlan {
     double score;
     unsigned bars;
     char reason[96];
+    unsigned beatsPerBar;
 } SMPlan;
 
 // All functions are local and deterministic. PCM must be decoded audio the host
