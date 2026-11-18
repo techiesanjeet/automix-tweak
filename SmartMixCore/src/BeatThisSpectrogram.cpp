@@ -114,8 +114,7 @@ bool computeBeatThisSpectrogram(const float* input, std::size_t inputFrames,
 
     const auto& filters = melFilterBank();
     std::array<std::complex<double>, kBeatThisFFTSize> spectrum{};
-    constexpr double normalization = 1.0 / std::sqrt(
-        static_cast<double>(kBeatThisFFTSize));
+    constexpr double normalization = 1.0 / 32.0; // 1 / sqrt(1024)
 
     for (std::size_t frame = 0; frame < outputFrames; ++frame) {
         const std::int64_t center = static_cast<std::int64_t>(
