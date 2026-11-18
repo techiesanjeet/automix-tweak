@@ -24,6 +24,8 @@
 - Phrase-length overlap calculation and beat-phase alignment.
 - Equal-power two-buffer gain rendering.
 - Worker-side 32-tap windowed-sinc sample-rate conversion and varispeed; this changes pitch and is not pitch-preserving time stretch.
+- Local Beat This log-mel preprocessing, beat/downbeat logit postprocessing, and conservative 3/4 or 4/4 meter inference.
+- Planner can align both transition ends to model-derived downbeats when both tracks have reliable, matching meter; it falls back to beat-phase alignment otherwise and skips known meter mismatches.
 - Fixed-capacity `PreparedPCMSubstitution` slot: worker-side preparation, lock-free state publication, exact source-epoch/frame scheduling, bounded callback memcpy, deterministic original-stream rejoin, and cancellation on discontinuity.
 - Tests for 120/100 BPM, stereo downmix, playback-rate-aware incoming buffer bounds, malformed metadata, resampler frequency/varispeed, prepared PCM boundary crossing, exact rejoin, late start, epoch mismatch, and cancellation.
 
