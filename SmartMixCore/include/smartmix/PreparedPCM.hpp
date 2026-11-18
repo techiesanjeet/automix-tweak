@@ -13,7 +13,7 @@ namespace smartmix {
 class PreparedPCMSubstitution {
 public:
     enum class State : std::uint8_t {
-        Empty, Preparing, Armed, Playing, CancelRequested, Completed, Cancelled
+        Empty, Preparing, CancelPreparing, Armed, Playing, CancelRequested, Completed, Cancelled
     };
     static_assert(std::atomic<State>::is_always_lock_free,
                   "Prepared PCM callback state must be lock-free");
