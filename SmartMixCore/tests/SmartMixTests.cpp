@@ -1,6 +1,7 @@
 #include <algorithm>
 #include "smartmix/SmartMix.hpp"
 #include "smartmix/PreparedPCM.hpp"
+#include "smartmix/Resampler.hpp"
 #include "smartmix/SmartMixBridge.h"
 #include <cassert>
 #include <cmath>
@@ -189,6 +190,34 @@ int main() {
 
     float invalidPCM[2] = {0.0f, std::numeric_limits<float>::infinity()};
     assert(!prepared.arm(invalidPCM, 1, 2, sampleRate, 8, 500));
+
+    // Offline windowed-sinc conversion preserves a 1 kHz tone and varispeed
+    // changes tempo/pitch as documented (pitch-preserving stretch is future work).
+    constexpr double inputRate = 48000.0;
+    constexpr double outputRate = 44100.0;
+    std::vector<float> tone(4800);
+    for (std::size_t i = 0; i < tone.size(); ++i) {
+        tone[i] = static_cast<float>(0.5 * std::sin(
+            2.0 * 3.141592653589793 * 1000.0 * static_cast<double>(i) / inputRate));
+    }
+    auto estimateFrequency = [](const std::vector<float>& samples, double rate) {
+        std::size_t positiveCrossings = 0;
+        for (std::size_t i = 1; i < samples.size(); ++i) {
+            if (samples[i - 1] <= 0.0f && samples[i] > 0.0f) ++positiveCrossings;
+        }
+        return static_cast<double>(positiveCrossings) * rate /
+            static_cast<double>(samples.size());
+    };
+    std::vector<float> resampled(4410);
+    assert(resampleInterleaved(tone.data(), tone.size(), 1, inputRate,
+                               resampled.data(), resampled.size(), outputRate, 1.0));
+    assert(std::abs(estimateFrequency(resampled, outputRate) - 1000.0) < 40.0);
+    std::vector<float> varispeed(4200);
+    assert(resampleInterleaved(tone.data(), tone.size(), 1, inputRate,
+                               varispeed.data(), varispeed.size(), outputRate, 1.05));
+    assert(std::abs(estimateFrequency(varispeed, outputRate) - 1050.0) < 45.0);
+    assert(!resampleInterleaved(tone.data(), tone.size(), 1, inputRate,
+                                varispeed.data(), 5000, outputRate, 1.0));
 
     std::cout << "SmartMix DSP tests passed; BPM=" << analysis.bpm
               << " confidence=" << analysis.beatConfidence << "\n";
