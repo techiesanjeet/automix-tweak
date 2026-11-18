@@ -53,7 +53,7 @@ bool PreparedPCMSubstitution::arm(const float* pcm, std::size_t frames,
 
     State preparing = State::Preparing;
     if (!state_.compare_exchange_strong(preparing, State::Armed,
-                                        std::memory_order_release,
+                                        std::memory_order_acq_rel,
                                         std::memory_order_acquire)) {
         if (preparing == State::CancelPreparing) {
             state_.store(State::Cancelled, std::memory_order_release);
@@ -159,7 +159,7 @@ bool PreparedPCMSubstitution::process(float* output, std::size_t frames,
     if (consumedFrames_ >= activeFrames_) {
         State playing = State::Playing;
         if (!state_.compare_exchange_strong(playing, State::Completed,
-                                            std::memory_order_release,
+                                            std::memory_order_acq_rel,
                                             std::memory_order_acquire) &&
             playing == State::CancelRequested) {
             finishCancelled();
