@@ -115,13 +115,12 @@ int main() {
 
     Track xDownbeat = x;
     Track yDownbeat = y;
-    xDownbeat.firstDownbeatSeconds = analysis.firstBeatSeconds;
-    yDownbeat.firstDownbeatSeconds = analysis.firstBeatSeconds;
-    xDownbeat.beatsPerBar = 4;
-    yDownbeat.beatsPerBar = 4;
+    assert(applyBeatGridToTrack(beatGrid, xDownbeat));
+    assert(applyBeatGridToTrack(beatGrid, yDownbeat));
+    assert(std::abs(xDownbeat.analysis.bpm - 120.0) < 1e-6);
     const auto downbeatPlan = planTransition(xDownbeat, yDownbeat);
     assert(downbeatPlan.valid && downbeatPlan.beatsPerBar == 4);
-    const double phrasePeriod = analysis.beatPeriodSeconds * 4.0;
+    const double phrasePeriod = xDownbeat.analysis.beatPeriodSeconds * 4.0;
     const double outgoingPhraseIndex =
         (downbeatPlan.startOutgoingSeconds - xDownbeat.firstDownbeatSeconds) /
         phrasePeriod;
