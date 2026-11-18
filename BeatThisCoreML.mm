@@ -8,7 +8,7 @@
 #include <new>
 
 struct SMBeatThisModel {
-    __strong MLModel *model;
+    void *model;
 };
 
 namespace {
@@ -47,7 +47,7 @@ extern "C" SMBeatThisModel *SMBeatThisCreateFromPath(const char *compiledModelPa
             if (!loaded) return nullptr;
             SMBeatThisModel *handle = new (std::nothrow) SMBeatThisModel;
             if (!handle) return nullptr;
-            handle->model = loaded;
+            handle->model = (__bridge_retained void *)loaded;
             return handle;
         }
     }
@@ -67,7 +67,13 @@ extern "C" SMBeatThisModel *SMBeatThisCreateInstalled(void) {
 }
 
 extern "C" void SMBeatThisDestroy(SMBeatThisModel *model) {
-    delete model;
+    if (!model) return;
+    @autoreleasepool {
+        MLModel *released = (__bridge_transfer MLModel *)model->model;
+        model->model = nullptr;
+        delete model;
+        (void)released;
+    }
 }
 
 extern "C" int SMBeatThisPredict(SMBeatThisModel *model,
@@ -78,6 +84,7 @@ extern "C" int SMBeatThisPredict(SMBeatThisModel *model,
                                   float *downbeatLogits) {
     if (!model || !model->model || !spectrogram || !beatLogits || !downbeatLogits ||
         frames != kBeatThisFrames || melBins != kBeatThisMelBins) return 0;
+    MLModel *loadedModel = (__bridge MLModel *)model->model;
 
     const std::size_t inputCount = frames * melBins;
     for (std::size_t i = 0; i < inputCount; ++i) {
@@ -101,7 +108,7 @@ extern "C" int SMBeatThisPredict(SMBeatThisModel *model,
                              error:&error];
             if (!provider) return 0;
             id<MLFeatureProvider> prediction =
-                [model->model predictionFromFeatures:provider error:&error];
+                [loadedModel predictionFromFeatures:provider error:&error];
             if (!prediction) return 0;
 
             MLMultiArray *beat = [[prediction featureValueForName:@"beat_logits"]
