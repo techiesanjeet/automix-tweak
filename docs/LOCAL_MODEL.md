@@ -58,7 +58,7 @@ The first pinned small0 conversion succeeded on an Apple Silicon macOS runner:
 - CPU parity against upstream PyTorch passed: maximum absolute error was about `3.8e-6`; mean absolute error was below `9e-7` for both outputs.
 - Verified model artifact: `BeatThisSmall0-CoreML` in GitHub Actions run 44259698594. The model is about 8.8 MB uncompressed inside its package.
 
-The trace is intentionally fixed-shape. Upstream trace warnings indicate that a different time dimension is not guaranteed to work; callers must supply exactly 1500 frames and apply the upstream six-frame edge trimming when stitching chunks. The conversion artifact is **not yet bundled into the tweak or tested on iPhone**.
+The trace is intentionally fixed-shape. Upstream trace warnings indicate that a different time dimension is not guaranteed to work; callers supply exactly 1500 frames and apply the upstream six-frame edge trimming when stitching chunks. The compiled `.mlmodelc` is bundled in the rootful and rootless diagnostic packages. Core ML runtime performance has not yet been benchmarked on iPhone.
 
 Exporter: `tools/export_beat_this_coreml.py`. Reproducible workflow: `.github/workflows/beat-this-coreml.yml`. It downloads the pinned checkpoint only during CI, verifies its hash, converts it, and checks PyTorch/Core ML parity. Runtime playback must use a bundled local `.mlmodelc` path only.
 
@@ -67,7 +67,8 @@ Exporter: `tools/export_beat_this_coreml.py`. Reproducible workflow: `.github/wo
 
 - `BeatThisCoreML.mm` loads the compiled model from a local `SmartMixResources.bundle`, checking the dylib-adjacent, rootful, rootless, and app-bundle locations. It contains no checkpoint downloader or network fallback.
 - `SMBeatThisPredictMonoChunk` accepts mono 22050 Hz PCM, applies the native log-mel frontend, pads a fixed 1500-frame chunk with the upstream six-frame border, and returns beat/downbeat logits. It is a worker-thread API.
+- `SMBeatThisPredictMonoTrack` now handles full tracks: it computes the full log-mel spectrogram, splits it into fixed 1500-frame windows with six-frame borders, predicts sequentially, and stitches logits with the pinned upstream `keep_first` policy. Clips shorter than 1488 model frames use the lightweight DSP fallback.
 - `SMApplyBeatThisLogitsToTrack` postprocesses logits, estimates a reliable 3/4 or 4/4 meter when possible, and updates the planner track through the C bridge.
 - The status UI includes a synthetic-silence model load/inference self-test. It does not inspect or alter live Taurus audio.
-- The native log-mel implementation is currently being parity-checked against the pinned torchaudio frontend. The previous check exposed an incorrect mel-filter normalization assumption; the implementation now matches the upstream `norm=None` setting, and the corrected parity run is pending.
-- The resource-bundle build workflow compiles the `.mlpackage` to `.mlmodelc` and stages it alongside the arm64 dylib. This packaging path still needs a successful end-to-end Theos CI run before it is considered validated.
+- The native log-mel implementation matches the pinned torchaudio frontend on the deterministic three-second parity fixture: maximum absolute error `1.91e-5`, mean absolute error `1.76e-6`. Full-track chunk planning and stitching are covered by portable C++ tests.
+- The resource-bundle build workflow compiles the `.mlpackage` to `.mlmodelc` and stages it alongside the arm64 dylib. Rootful and rootless package builds and payload verification passed in Theos workflow run `44265182450`; the latest build with full-track inference is being checked separately.
