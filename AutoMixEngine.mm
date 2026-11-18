@@ -156,14 +156,14 @@ static NSString *AMBuildReport(void) {
                 @"Source format: %.0f Hz, %u channels, %u-bit %@, %@.\n"
                  "Format ID: 0x%08x; flags: 0x%08x; bytes/frame: %u.\n"
                  "Read-ahead metadata available: %@. This does not prove next-track PCM.\n"
-                 "Processor attached with NULL context: %@. Other contexts are not enumerated.\n"
+                 "Context-specific attached-query symbol available: %@. Actual slot owner is unknown.\n"
                  "No processor was registered, no audio was pulled, and playback was not changed.",
                 info.sampleRate, info.channelsPerFrame, info.bitsPerChannel,
                 isFloat ? @"float" : @"non-float",
                 nonInterleaved ? @"non-interleaved" : @"interleaved",
                 info.formatID, info.formatFlags, info.bytesPerFrame,
                 info.canReadAhead ? @"yes" : @"no",
-                info.nullContextProcessorAttached ? @"yes" : @"no"];
+                info.processorAttachedQueryAvailable ? @"yes" : @"no"];
         }
 
         dispatch_async(dispatch_get_main_queue(), ^{
