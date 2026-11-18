@@ -100,9 +100,14 @@ jobs:
         run: |
           set -euo pipefail
           DYLIB="$(find . -type f -name 'AutoMixEngine.dylib' -print -quit)"
-          BUNDLE=".theos/_/Library/Application Support/AutoMix/SmartMixResources.bundle"
+          BUNDLE="$(find . -path '*/Library/Application Support/AutoMix/SmartMixResources.bundle' -type d -print -quit)"
+          if [ -z "$BUNDLE" ]; then
+            BUNDLE="$(find . -type d -name 'SmartMixResources.bundle' -print -quit)"
+          fi
           test -n "$DYLIB"
+          test -n "$BUNDLE"
           test -d "$BUNDLE/BeatThisSmall0.mlmodelc"
+          echo "Verified model bundle: $BUNDLE"
           file "$DYLIB"
           xcrun --sdk iphoneos lipo -info "$DYLIB" || lipo -info "$DYLIB"
           mkdir -p "$RUNNER_TEMP/automix-build"
