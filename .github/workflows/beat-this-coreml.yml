@@ -1,5 +1,9 @@
 name: Beat This small0 Core ML export
 
+concurrency:
+  group: beat-this-export-${{ github.ref }}
+  cancel-in-progress: true
+
 on:
   push:
     paths:
