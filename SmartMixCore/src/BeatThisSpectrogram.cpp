@@ -45,14 +45,13 @@ const std::array<double, kBeatThisMelBins * kBins>& melFilterBank() {
         for (std::size_t mel = 0; mel < kBeatThisMelBins; ++mel) {
             const double lowerWidth = points[mel + 1] - points[mel];
             const double upperWidth = points[mel + 2] - points[mel + 1];
-            const double slaneyNorm = 2.0 / (points[mel + 2] - points[mel]);
             for (std::size_t bin = 0; bin < kBins; ++bin) {
                 const double frequency = static_cast<double>(bin) *
                     kBeatThisSampleRate / static_cast<double>(kBeatThisFFTSize);
                 const double lower = (frequency - points[mel]) / lowerWidth;
                 const double upper = (points[mel + 2] - frequency) / upperWidth;
                 result[mel * kBins + bin] =
-                    std::max(0.0, std::min(lower, upper)) * slaneyNorm;
+                    std::max(0.0, std::min(lower, upper));
             }
         }
         return result;
