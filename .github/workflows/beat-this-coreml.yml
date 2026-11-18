@@ -1,0 +1,67 @@
+name: Beat This small0 Core ML export
+
+on:
+  push:
+    paths:
+      - "tools/export_beat_this_coreml.py"
+      - ".github/workflows/beat-this-coreml.yml"
+      - "docs/BEAT_THIS_INPUT_CONTRACT.md"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  export:
+    runs-on: macos-15
+    steps:
+      - name: Check out SmartMix
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Check out pinned Beat This! source
+        run: |
+          git clone --filter=blob:none https://github.com/CPJKU/beat_this.git beat_this_upstream
+          git -C beat_this_upstream fetch --depth=1 origin b95c8ab0c58c2d9fcfd40508ae8dffbc05ac4f5c
+          git -C beat_this_upstream checkout --detach FETCH_HEAD
+
+      - name: Install conversion dependencies
+        run: |
+          python -m pip install --upgrade pip
+          python -m pip install "numpy<2" "torch==2.5.1" "torchaudio==2.5.1" "coremltools==8.3.0" einops rotary-embedding-torch soxr
+
+      - name: Download official small0 checkpoint for build-time conversion
+        run: |
+          mkdir -p model-build
+          curl --fail --location --retry 3 \
+            "https://cloud.cp.jku.at/public.php/dav/files/7ik4RrBKTS273gp/small0.ckpt" \
+            --output model-build/small0.ckpt
+          shasum -a 256 model-build/small0.ckpt
+
+      - name: Convert and verify PyTorch/Core ML parity
+        env:
+          PYTHONPATH: \${{ github.workspace }}/beat_this_upstream
+        run: |
+          python tools/export_beat_this_coreml.py \
+            --checkpoint model-build/small0.ckpt \
+            --output model-build/BeatThisSmall0.mlpackage
+
+      - name: Package Core ML model
+        run: |
+          ditto -c -k --sequesterRsrc --keepParent \
+            model-build/BeatThisSmall0.mlpackage \
+            model-build/BeatThisSmall0.mlpackage.zip
+
+      - name: Upload verified model artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: BeatThisSmall0-CoreML
+          path: |
+            model-build/BeatThisSmall0.mlpackage.zip
+            model-build/BeatThisSmall0-manifest.json
+          if-no-files-found: error
+          retention-days: 14
