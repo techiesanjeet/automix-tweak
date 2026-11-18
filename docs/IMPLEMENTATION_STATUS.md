@@ -1,6 +1,6 @@
 # Implementation status
 
-## Implemented and CI-verified
+## Target device\n- Primary validation target: iPhone 16 Pro running iOS 27.2.1. This is a test target, not a minimum deployment target. Theos currently remains at iOS 14.0 until runtime compatibility is measured.\n\n## Implemented and CI-verified
 - Portable C++17 library with no network or media-acquisition code.
 - PCM validation, duration, RMS and peak measurement.
 - Bounded rolling-window PCM ingestion for streaming playback: chunk append is allocation-free after setup, while snapshots/analysis are restricted to a serialized background worker.
@@ -24,7 +24,7 @@ This is a DSP prototype, not an Apple Music AutoMix replacement yet:
 - No Taurus runtime integration has been made; two-deck source access and scheduling remain unproven.
 
 ## Next engineering gates
-1. Convert the official Beat This! small0 checkpoint to a locally bundled iOS runtime (Core ML/ONNX), verify prediction parity against upstream, and retain the C++ fallback. See docs/LOCAL_MODEL.md.
+1. Convert the official Beat This! small0 checkpoint to a locally bundled Core ML runtime, verify prediction parity against upstream, and retain the C++ fallback. Benchmark inference and memory on the iPhone 16 Pro / iOS 27.2.1. See docs/LOCAL_MODEL.md.
 2. Add multi-band spectral flux, tempo candidates and half/double-time resolution, and benchmark rolling analysis CPU/memory on-device.
 3. Add silence/intro/outro and energy-section analysis with annotated licensed fixtures.
 4. Add a high-quality tempo-preserving time-stretch/resampler and test pitch preservation.
