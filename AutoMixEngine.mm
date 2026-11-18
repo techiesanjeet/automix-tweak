@@ -35,6 +35,8 @@ static NSString *AMBuildReport(void) {
     NSArray<NSString *> *symbols = @[
         @"SMAnalyzePCM", @"SMCreateStreamingAnalyzer", @"SMAppendPCM",
         @"SMAnalyzeLatest", @"SMPlanTransition", @"SMRenderEqualPower",
+        @"SMBeatThisPredictMonoChunk", @"SMApplyBeatThisLogitsToTrack",
+        @"SMBetaPipelineInspect",
         @"SGAudioPipelineAvailable", @"SGAudioPipelineTapped",
         @"SGAudioPipelineSetSourceProcessor", @"SGAudioPipelinePull",
         @"SGAudioPipelinePullOriginal", @"SGAudioPipelineSourceFormat",
@@ -46,9 +48,10 @@ static NSString *AMBuildReport(void) {
         [report appendFormat:@"%@: %@\n", symbol, AMSymbolState(symbol)];
     }
     [report appendString:
-        @"\nNext gate: verify the Beta source callback signature, buffer lifetime, "
-         "source identity, read-ahead meaning, frame clock, and exact rejoin on-device. "
-         "AutoMix stays inactive until those checks pass."];
+        @"\nStatic disassembly has clarified the callback prototype, but Beta appears to "
+         "have a single global processor slot. We do not replace it. Next gate: confirm "
+         "runtime callback ownership, incoming next-track PCM, source identity, frame clock, "
+         "and exact rejoin on-device. AutoMix stays inactive until those checks pass."];
     return report;
 }
 
