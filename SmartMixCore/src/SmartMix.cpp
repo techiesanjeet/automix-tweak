@@ -264,12 +264,17 @@ Plan planTransition(const Track& outgoing, const Track& incoming,
             std::isfinite(analysis.firstBeatSeconds) && std::isfinite(analysis.beatConfidence) &&
             std::isfinite(analysis.durationSeconds) && std::isfinite(track.introSeconds) &&
             std::isfinite(track.outroSeconds) && std::isfinite(track.energy) &&
+            std::isfinite(track.firstDownbeatSeconds) &&
             analysis.bpm > 0.0 && analysis.beatPeriodSeconds > 0.0 &&
             analysis.durationSeconds > 0.0 && analysis.firstBeatSeconds >= 0.0 &&
             analysis.firstBeatSeconds < analysis.durationSeconds &&
             analysis.beatConfidence >= 0.08 && analysis.beatConfidence <= 1.0 &&
             track.introSeconds >= 0.0 && track.outroSeconds >= 0.0 &&
-            track.energy >= 0.0 && track.energy <= 1.0;
+            track.energy >= 0.0 && track.energy <= 1.0 &&
+            (track.beatsPerBar == 0 ||
+             ((track.beatsPerBar == 3 || track.beatsPerBar == 4) &&
+              track.firstDownbeatSeconds >= 0.0 &&
+              track.firstDownbeatSeconds < analysis.durationSeconds));
     };
     if (!validTrack(outgoing) || !validTrack(incoming)) {
         plan.reason = "invalid track analysis or metadata";
@@ -281,11 +286,20 @@ Plan planTransition(const Track& outgoing, const Track& incoming,
         plan.reason = "tempo mismatch exceeds policy";
         return plan;
     }
+    const bool useDownbeatGrid =
+        outgoing.beatsPerBar != 0 && incoming.beatsPerBar != 0;
+    if (useDownbeatGrid && outgoing.beatsPerBar != incoming.beatsPerBar) {
+        plan.reason = "meter mismatch between tracks";
+        return plan;
+    }
+
     plan.tempoRatio = ratio;
     plan.incomingPlaybackRate = 1.0 / ratio;
     const double outgoingBeat = outgoing.analysis.beatPeriodSeconds;
     const double incomingBeat = incoming.analysis.beatPeriodSeconds;
-    plan.durationSeconds = outgoingBeat * 4.0 * bars;
+    plan.beatsPerBar = useDownbeatGrid ? outgoing.beatsPerBar : 4;
+    plan.durationSeconds = outgoingBeat *
+        static_cast<double>(plan.beatsPerBar) * bars;
 
     const double latest = outgoing.analysis.durationSeconds -
         std::max(0.0, outgoing.outroSeconds) - plan.durationSeconds;
@@ -294,15 +308,23 @@ Plan planTransition(const Track& outgoing, const Track& incoming,
         plan.reason = "outgoing track has no full phrase available";
         return plan;
     }
+    const double outgoingPhase = useDownbeatGrid
+        ? outgoing.firstDownbeatSeconds : outgoing.analysis.firstBeatSeconds;
+    const double incomingPhase = useDownbeatGrid
+        ? incoming.firstDownbeatSeconds : incoming.analysis.firstBeatSeconds;
+    const double outgoingGridPeriod = outgoingBeat *
+        static_cast<double>(plan.beatsPerBar);
+    const double incomingGridPeriod = incomingBeat *
+        static_cast<double>(plan.beatsPerBar);
     plan.startOutgoingSeconds = alignAtOrBefore(
-        latest, outgoing.analysis.firstBeatSeconds, outgoingBeat);
+        latest, outgoingPhase, useDownbeatGrid ? outgoingGridPeriod : outgoingBeat);
     if (plan.startOutgoingSeconds < earliest) {
-        plan.reason = "no beat-aligned outgoing start inside usable region";
+        plan.reason = "no aligned outgoing start inside usable region";
         return plan;
     }
     plan.startIncomingSeconds = alignAtOrAfter(
-        std::max(0.0, incoming.introSeconds),
-        incoming.analysis.firstBeatSeconds, incomingBeat);
+        std::max(0.0, incoming.introSeconds), incomingPhase,
+        useDownbeatGrid ? incomingGridPeriod : incomingBeat);
     if (plan.startOutgoingSeconds + plan.durationSeconds >
             outgoing.analysis.durationSeconds - std::max(0.0, outgoing.outroSeconds) + 1e-6 ||
         plan.startIncomingSeconds + plan.durationSeconds * plan.incomingPlaybackRate >
@@ -316,7 +338,9 @@ Plan planTransition(const Track& outgoing, const Track& incoming,
         std::min(1.0, std::abs(outgoing.energy - incoming.energy));
     plan.score = std::clamp(0.65 * tempoScore + 0.35 * energyScore, 0.0, 1.0);
     plan.valid = true;
-    plan.reason = "beat-phase-aligned phrase candidate";
+    plan.reason = useDownbeatGrid
+        ? "downbeat-aligned phrase candidate"
+        : "beat-phase-aligned phrase candidate";
     return plan;
 }
 
