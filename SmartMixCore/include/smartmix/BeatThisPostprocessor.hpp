@@ -1,0 +1,28 @@
+#pragma once
+
+#include <cstddef>
+#include <vector>
+
+namespace smartmix {
+
+struct BeatGrid {
+    std::vector<double> beatTimesSeconds;
+    std::vector<double> downbeatTimesSeconds;
+    double bpm{0.0};
+    double beatPeriodSeconds{0.0};
+    bool usable{false};
+};
+
+// Matches the pinned Beat This! postprocessor: width-7 local-max suppression,
+// positive-logit threshold, adjacent-peak deduplication, and downbeat snapping
+// to the nearest beat. validStartFrame/validEndFrame select the chunk's
+// non-padding region (end is exclusive); model frame rate is normally 50 Hz.
+bool postprocessBeatThisLogits(const float* beatLogits,
+                               const float* downbeatLogits,
+                               std::size_t frameCount,
+                               std::size_t validStartFrame,
+                               std::size_t validEndFrame,
+                               double frameRate,
+                               BeatGrid& output);
+
+} // namespace smartmix
