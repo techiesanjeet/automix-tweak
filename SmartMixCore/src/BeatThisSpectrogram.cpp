@@ -89,7 +89,7 @@ std::size_t reflectIndex(std::int64_t index, std::size_t length) {
     const auto end = static_cast<std::int64_t>(length);
     while (index < 0 || index >= end) {
         if (index < 0) index = -index;
-        if (index >= end) index = 2 * end - 2 - index;
+        if (index >= end) index = end - 2 - (index - end);
     }
     return static_cast<std::size_t>(index);
 }
