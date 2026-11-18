@@ -9,7 +9,7 @@ updating the converter.
 - Input is mono audio. Stereo input is averaged across channels.
 - Resample to 22,050 Hz before feature extraction.
 - Log-mel spectrogram: FFT 1,024; hop 441 samples (20 ms); 128 mel bins;
-  30 Hz to 11,000 Hz; Slaney mel scale; frame-length normalization; power 1.
+  30 Hz to 11,000 Hz; Slaney mel scale with unnormalized triangular filters (`norm=None`); frame-length normalization; power 1.
 - Apply `log1p(1000 * mel)`.
 - The network accepts a spectrogram shaped as time × 128 mel bins and emits
   framewise beat and downbeat logits.
