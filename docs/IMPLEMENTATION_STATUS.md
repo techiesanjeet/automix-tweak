@@ -9,7 +9,7 @@
 - Added a macOS 15 / Theos arm64 build workflow that installs Theos + iOS SDKs, compiles the dylib, verifies its architecture, and uploads the artifact.
 - Removed the old `AudioUnitRender` fade-only hook from the active engine. That hook only attenuated the current song, used unsynchronized shared state, and was not a real two-track AutoMix transition.
 - The current UI is an honest status/diagnostic surface. It reports that playback integration is pending and does not alter Taurus audio.
-- The default-branch diagnostic snapshot completed a successful Theos arm64 build and artifact upload. Feature-branch spectral-flux DSP plus the C++17 Theos flag fix also completed a successful Theos arm64 build and artifact upload at commit `a0688de`; the newer prepared-PCM slot changes are in CI now.
+- The default-branch diagnostic snapshot completed a successful Theos arm64 build and artifact upload. The feature branch's spectral-flux DSP, prepared-PCM substitution slot, sinc varispeed resampler, and C++17 Theos flag fix completed a successful Theos arm64 build and artifact upload at commit `5d1fabb`.
 - This is still a safe diagnostic build target, **not a functioning AutoMix release**. The runtime source contract remains unverified.
 
 ## Implemented and CI-verified
