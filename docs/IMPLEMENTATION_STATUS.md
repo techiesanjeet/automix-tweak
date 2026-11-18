@@ -3,6 +3,7 @@
 ## Implemented and CI-verified
 - Portable C++17 library with no network or media-acquisition code.
 - PCM validation, duration, RMS and peak measurement.
+- Bounded rolling-window PCM ingestion for streaming playback: chunk append is allocation-free after setup, while snapshots/analysis are restricted to a serialized background worker.
 - Lightweight 100 Hz energy-onset envelope and autocorrelation BPM estimate (nominal 60–180 BPM range).
 - Coarse first-onset phase estimate.
 - Transition candidate validation against beat confidence and a configurable tempo-ratio bound.
@@ -19,10 +20,11 @@ This is a DSP prototype, not an Apple Music AutoMix replacement yet:
 - Key, sections, vocal density, stems, and intro/outro detection are not implemented.
 - `incomingPlaybackRate` is a plan value only. No time-stretch engine is implemented.
 - Renderer expects two already-decoded, resampled, synchronised PCM buffers in the same format. It is not a Spotify decoder or dual-player.
+- The streaming analyzer is a rolling PCM prototype, not yet a low-memory multi-feature streaming model; its snapshot analysis allocates and must stay off the real-time callback.
 - No Taurus runtime integration has been made; two-deck source access and scheduling remain unproven.
 
 ## Next engineering gates
-1. Add multi-band spectral flux, tempo candidates and half/double-time resolution.
+1. Add multi-band spectral flux, tempo candidates and half/double-time resolution, and benchmark rolling analysis CPU/memory on-device.
 2. Add downbeat and phrase confidence; don't label a first beat as a downbeat.
 3. Add silence/intro/outro and energy-section analysis with annotated licensed fixtures.
 4. Add a high-quality tempo-preserving time-stretch/resampler and test pitch preservation.
