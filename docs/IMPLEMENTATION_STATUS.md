@@ -24,8 +24,8 @@ This is a DSP prototype, not an Apple Music AutoMix replacement yet:
 - No Taurus runtime integration has been made; two-deck source access and scheduling remain unproven.
 
 ## Next engineering gates
-1. Add multi-band spectral flux, tempo candidates and half/double-time resolution, and benchmark rolling analysis CPU/memory on-device.
-2. Add downbeat and phrase confidence; don't label a first beat as a downbeat.
+1. Convert the official Beat This! small0 checkpoint to a locally bundled iOS runtime (Core ML/ONNX), verify prediction parity against upstream, and retain the C++ fallback. See docs/LOCAL_MODEL.md.
+2. Add multi-band spectral flux, tempo candidates and half/double-time resolution, and benchmark rolling analysis CPU/memory on-device.
 3. Add silence/intro/outro and energy-section analysis with annotated licensed fixtures.
 4. Add a high-quality tempo-preserving time-stretch/resampler and test pitch preservation.
 5. Add a render callback that consumes two independently clocked decks through a bounded, lock-free handoff; test underruns and format changes.
