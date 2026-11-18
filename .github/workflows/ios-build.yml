@@ -12,6 +12,7 @@ on:
       - "BeatThisCoreML.mm"
       - "BetaSourceProcessorProbe.mm"
       - "Makefile"
+      - "tools/pack_coreml_bundle.py"
       - ".github/workflows/ios-build.yml"
       - "control"
       - "layout/**"
@@ -82,6 +83,8 @@ jobs:
           test -d model-build/compiled/BeatThisSmall0.mlmodelc
           rm -rf Resources/BeatThisSmall0.mlmodelc
           cp -R model-build/compiled/BeatThisSmall0.mlmodelc Resources/BeatThisSmall0.mlmodelc
+          python tools/pack_coreml_bundle.py Resources model-build/SmartMixResources.smar
+          test -s model-build/SmartMixResources.smar
 
       - name: Cache Theos and SDKs
         uses: actions/cache@v4
@@ -131,6 +134,7 @@ jobs:
           test -d "$BUNDLE/BeatThisSmall0.mlmodelc"
           file "$DYLIB"
           xcrun --sdk iphoneos lipo -info "$DYLIB" || lipo -info "$DYLIB"
+          otool -l "$DYLIB" | grep -A 3 "__smrtmix"
           cp "$DYLIB" "$RUNNER_TEMP/automix-packages/AutoMixEngine.dylib"
           cp -R "$BUNDLE" "$RUNNER_TEMP/automix-packages/SmartMixResources.bundle"
 
