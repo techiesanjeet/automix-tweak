@@ -54,7 +54,8 @@ static NSString *AMBuildReport(void) {
         @"SGAudioPipelineSourcePrefix", @"SGAudioPipelineSourceAheadFrames",
         @"SGAudioPipelineSourceCanReadAhead", @"SGAudioPipelineRegister"
     ];
-    [report appendString:@"\nSOURCE-PROCESSOR + RENDER-BOUNDARY INVENTORY:\n"];\n    [report appendString:AMBetaRenderBoundaryProbeReport() ?: @"Render-boundary inventory unavailable.\n"];\n    [report appendString:@"Runtime symbol visibility (presence is not proof of ABI):\n"];
+    [report appendString:@"\nSOURCE-PROCESSOR + RENDER-BOUNDARY INVENTORY:\n"];
+    [report appendString:AMBetaRenderBoundaryProbeReport() ?: @"Render-boundary inventory unavailable.\n"];\n    [report appendString:@"Runtime symbol visibility (presence is not proof of ABI):\n"];
     for (NSString *symbol in symbols) {
         [report appendFormat:@"%@: %@\n", symbol, AMSymbolState(symbol)];
     }
