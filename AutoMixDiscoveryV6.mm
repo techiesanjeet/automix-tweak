@@ -5,7 +5,7 @@
 #import <stdlib.h>
 
 extern "C" void AMBetaAudioTapProbeInstall(void);
-extern "C" NSString *AMBetaAudioTapProbeReport(void);
+extern "C" NSString *AMBetaAudioTapProbeReport(void);\nextern "C" NSString *AMBetaRenderBoundaryProbeReport(void);
 extern "C" void AMBetaPlaybackTimingProbeInstall(void);
 extern "C" NSString *AMBetaPlaybackTimingProbeReport(void);
 
@@ -120,7 +120,7 @@ static NSString *AMScan(void) {
       NSBundle.mainBundle.infoDictionary[@"CFBundleVersion"] ?: @"unknown",
       [NSDate date], filled, (unsigned long)targets.count, [names componentsJoinedByString:@"\n"]];
     for (Class c in targets) AMAppendClass(report, c);
-    [report appendFormat:@"\\n\\n========== BETA AUDIO TAP PROBE ==========\\n%@\\n",
+    [report appendFormat:@"\\n\\n========== BETA SOURCE-PROCESSOR + RENDER-BOUNDARY INVENTORY ==========\\n%@\\n",\n      AMBetaRenderBoundaryProbeReport() ?: @"Render-boundary inventory unavailable."];\n    [report appendFormat:@"\\n\\n========== BETA AUDIO TAP PROBE ==========\\n%@\\n",
       AMBetaAudioTapProbeReport() ?: @"Probe report unavailable."];
     [report appendFormat:@"\\n\\n========== BETA PLAYBACK TIMING TRACE ==========\\n%@\\n",
       AMBetaPlaybackTimingProbeReport() ?: @"Timing probe report unavailable."];
