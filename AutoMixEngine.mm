@@ -9,6 +9,7 @@
 extern "C" void AMBetaAudioTapProbeInstall(void);
 extern "C" NSString *AMBetaAudioTapProbeReport(void);
 extern "C" NSString *AMBetaRenderBoundaryProbeReport(void);
+extern "C" NSString *AMBetaSourceProcessorCallsiteReport(void);
 extern "C" void AMBetaPlaybackTimingProbeInstall(void);
 extern "C" NSString *AMBetaPlaybackTimingProbeReport(void);
 #include "smartmix/BeatThisSpectrogram.hpp"
