@@ -55,6 +55,39 @@ static id O5(id s,SEL c,id a,id b,id d,id e,id f){AMLog(@"ENTER",s,c,A5(a,b,d,e,
 static void V5(id s,SEL c,id a,id b,id d,id e,id f){AMLog(@"ENTER",s,c,A5(a,b,d,e,f),nil);IMP p=AMOriginal(s,c);if(p)((void(*)(id,SEL,id,id,id,id,id))p)(s,c,a,b,d,e,f);AMLog(@"RETURN",s,c,A0(),nil);}
 static id O6(id s,SEL c,id a,id b,id d,id e,id f,id g){AMLog(@"ENTER",s,c,A6(a,b,d,e,f,g),nil);IMP p=AMOriginal(s,c);id r=p?((id(*)(id,SEL,id,id,id,id,id,id))p)(s,c,a,b,d,e,f,g):nil;AMLog(@"RETURN",s,c,A0(),r);return r;}
 static void V6(id s,SEL c,id a,id b,id d,id e,id f,id g){AMLog(@"ENTER",s,c,A6(a,b,d,e,f,g),nil);IMP p=AMOriginal(s,c);if(p)((void(*)(id,SEL,id,id,id,id,id,id))p)(s,c,a,b,d,e,f,g);AMLog(@"RETURN",s,c,A0(),nil);}
+static void AMLogObserver(NSString *phase,id self,SEL cmd,NSString *detail) {
+ NSString *cls=NSStringFromClass([self class])?:@"?";
+ NSString *line=[NSString stringWithFormat:@"%@ %@ [%@ %@] %@",AMElapsed(),phase,cls,NSStringFromSelector(cmd),detail?:@""];
+ @synchronized(gEvents){[gEvents addObject:line];if(gEvents.count>500)[gEvents removeObjectAtIndex:0];}
+}
+static void V2DD(id s,SEL c,double a,double b) {
+ AMLogObserver(@"ENTER",s,c,[NSString stringWithFormat:@"position=%.3f timestamp=%.6f",a,b]);
+ IMP p=AMOriginal(s,c);if(p)((void(*)(id,SEL,double,double))p)(s,c,a,b);
+ AMLogObserver(@"RETURN",s,c,@"");
+}
+static void V2OD(id s,SEL c,id a,double b) {
+ AMLogObserver(@"ENTER",s,c,[NSString stringWithFormat:@"objectClass=%@ timestamp=%.6f",a?NSStringFromClass([a class]):@"nil",b]);
+ IMP p=AMOriginal(s,c);if(p)((void(*)(id,SEL,id,double))p)(s,c,a,b);
+ AMLogObserver(@"RETURN",s,c,@"");
+}
+static void V3QDD(id s,SEL c,long long a,double b,double d) {
+ AMLogObserver(@"ENTER",s,c,[NSString stringWithFormat:@"reason=%lld position=%.3f timestamp=%.6f",a,b,d]);
+ IMP p=AMOriginal(s,c);if(p)((void(*)(id,SEL,long long,double,double))p)(s,c,a,b,d);
+ AMLogObserver(@"RETURN",s,c,@"");
+}
+static void V3ODD(id s,SEL c,id a,double b,double d) {
+ AMLogObserver(@"ENTER",s,c,[NSString stringWithFormat:@"objectClass=%@ position=%.3f timestamp=%.6f",a?NSStringFromClass([a class]):@"nil",b,d]);
+ IMP p=AMOriginal(s,c);if(p)((void(*)(id,SEL,id,double,double))p)(s,c,a,b,d);
+ AMLogObserver(@"RETURN",s,c,@"");
+}
+static IMP AMObserverWrapper(NSString *selector,const char *encoding) {
+ if(!encoding)return nullptr;
+ if(([selector isEqualToString:@"didStartRenderingAtPosition:timestamp:"] || [selector isEqualToString:@"didBecomeReadyAtPosition:timestamp:"] || [selector isEqualToString:@"didStartBufferingAtPosition:timestamp:"] || [selector isEqualToString:@"didPauseAtPosition:timestamp:"] || [selector isEqualToString:@"didResumeAtPosition:timestamp:"] || [selector isEqualToString:@"didChangeDuration:timestamp:"] || [selector isEqualToString:@"didForceRebufferToPosition:timestamp:"]) && strcmp(encoding,"v32@0:8d16d24")==0)return (IMP)V2DD;
+ if(([selector isEqualToString:@"didCreatePlaybackWithAttributes:timestamp:"] || [selector isEqualToString:@"didLoadManifest:timestamp:"] || [selector isEqualToString:@"willEndPlaybackWithNextIdentity:timestamp:"]) && strcmp(encoding,"v32@0:8@16d24")==0)return (IMP)V2OD;
+ if([selector isEqualToString:@"didEndPlaybackWithReason:atPosition:timestamp:"] && strcmp(encoding,"v40@0:8q16d24d32")==0)return (IMP)V3QDD;
+ if(([selector isEqualToString:@"didFailWithPlaybackError:atPosition:timestamp:"] || [selector isEqualToString:@"didFailPlaybackWithRecoverableError:atPosition:timestamp:"]) && strcmp(encoding,"v40@0:8@16d24d32")==0)return (IMP)V3ODD;
+ return nullptr;
+}
 
 static bool AMLifecycleClass(NSString *name) {
  NSString *c=name.lowercaseString;
@@ -99,9 +132,13 @@ static IMP AMWrapper(unsigned n,bool obj) {
 static void AMInspectMethod(Class owner,Method m,NSString *className) {
  SEL sel=method_getName(m);NSString *sn=NSStringFromSelector(sel);NSString *cat=AMCategory(sn,className);if(!cat)return;
  const char *enc=method_getTypeEncoding(m);unsigned argc=method_getNumberOfArguments(m);char ret=AMType(enc);
- bool safe=(ret=='@'||ret=='v')&&argc>=2&&argc<=8;
- for(unsigned i=2;safe&&i<argc;i++){char *t=method_copyArgumentType(m,i);safe=AMType(t)=='@';free(t);}
- unsigned n=argc>=2?argc-2:99;IMP wrapper=safe?AMWrapper(n,ret=='@'):nullptr;
+ IMP wrapper=nullptr;
+ if([className.lowercaseString containsString:@"multiplayerobserverbridge"])wrapper=AMObserverWrapper(sn,enc);
+ if(!wrapper){
+  bool safe=(ret=='@'||ret=='v')&&argc>=2&&argc<=8;
+  for(unsigned i=2;safe&&i<argc;i++){char *t=method_copyArgumentType(m,i);safe=AMType(t)=='@';free(t);}
+  unsigned n=argc>=2?argc-2:99;wrapper=safe?AMWrapper(n,ret=='@'):nullptr;
+ }
  NSString *candidate=[NSString stringWithFormat:@"%@ %@ %@ args=%u return=%c encoding=%s %@",className,sn,cat,n,ret,enc?:"?",wrapper?@"HOOKABLE":@"DISCOVERED_ONLY"];
  @synchronized(gCandidates){if(![gCandidates containsObject:candidate]&&gCandidates.count<250)[gCandidates addObject:candidate];}
  if(!wrapper)return;
