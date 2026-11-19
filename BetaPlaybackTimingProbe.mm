@@ -139,7 +139,7 @@ static void AMInspectMethod(Class owner,Method m,NSString *className) {
   for(unsigned i=2;safe&&i<argc;i++){char *t=method_copyArgumentType(m,i);safe=AMType(t)=='@';free(t);}
   unsigned n=argc>=2?argc-2:99;wrapper=safe?AMWrapper(n,ret=='@'):nullptr;
  }
- NSString *candidate=[NSString stringWithFormat:@"%@ %@ %@ args=%u return=%c encoding=%s %@",className,sn,cat,n,ret,enc?:"?",wrapper?@"HOOKABLE":@"DISCOVERED_ONLY"];
+ NSString *candidate=[NSString stringWithFormat:@"%@ %@ %@ args=%u return=%c encoding=%s %@",className,sn,cat,argc>=2?argc-2:0,ret,enc?:"?",wrapper?@"HOOKABLE":@"DISCOVERED_ONLY"];
  @synchronized(gCandidates){if(![gCandidates containsObject:candidate]&&gCandidates.count<250)[gCandidates addObject:candidate];}
  if(!wrapper)return;
  {std::lock_guard<std::mutex> lock(gMutex);for(const auto &h:gHooks)if(h.owner==owner&&h.selector==sel)return;gHooks.push_back({owner,sel,method_getImplementation(m),cat.UTF8String?:""});}
