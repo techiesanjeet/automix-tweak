@@ -12,6 +12,7 @@ on:
       - "AutoMixDiscoveryV6.mm"
       - "BeatThisCoreML.mm"
       - "BetaSourceProcessorProbe.mm"
+      - "BetaPlaybackTimingProbe.mm"
       - "Makefile"
       - "tools/pack_coreml_bundle.py"
       - ".github/workflows/ios-build.yml"
