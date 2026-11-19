@@ -97,6 +97,16 @@ static bool AMLifecycleClass(NSString *name) {
 }
 static NSString *AMCategory(NSString *sel,NSString *cls) {
  NSString *s=sel.lowercaseString,*c=cls.lowercaseString;
+ if([c containsString:@"internalplayerimpl"] &&
+    ([s containsString:@"audiotap"] || [s containsString:@"audiocoordinator"] ||
+     [s containsString:@"audiotapdelegate"] || [s containsString:@"audiotapfactory"]))return @"PLAYER_AUDIO_BINDING";
+ if(([c containsString:@"betamax"] || [c containsString:@"audiocoordinator"] ||
+     [c containsString:@"samplebufferaudiotap"] || [c containsString:@"audiotapfactory"]) &&
+    ([s containsString:@"audio"] || [s containsString:@"render"] || [s containsString:@"output"] ||
+     [s containsString:@"buffer"] || [s containsString:@"sample"] || [s containsString:@"tap"]))return @"BETAMAX_AUDIO_PATH";
+ if([c containsString:@"multiplayeraudiotap"] &&
+    ([s containsString:@"active"] || [s containsString:@"enabled"] || [s containsString:@"delegate"] ||
+     [s containsString:@"player"] || [s containsString:@"mute"] || [s containsString:@"subject"]))return @"AUDIO_TAP_LIFECYCLE";
  if([s containsString:@"responsefromsptmedia"]&&[s containsString:@"downloadurl"])return @"DOWNLOAD_URL_RESULT";
  if([s containsString:@"getmediamanifest"]||([c containsString:@"manifest"]&&[s containsString:@"fetch"]))return @"MANIFEST_REQUEST";
  if([s containsString:@"downloadurl"])return @"DOWNLOAD_URL";
@@ -120,7 +130,7 @@ static NSString *AMCategory(NSString *sel,NSString *cls) {
  return nil;
 }
 static bool AMRelevantClass(NSString *n) {
- NSString *s=n.lowercaseString;NSArray *terms=@[@"internalplayerimpl",@"genericplayerpool",@"manifestfetcher",@"manifest",@"upnext",@"queue",@"playerfactory",@"multiplayer",@"contextplayer",@"singleplayer",@"playerpool",@"bmaudiotapfactory",@"bmsamplebufferaudiotap"];
+ NSString *s=n.lowercaseString;NSArray *terms=@[@"internalplayerimpl",@"bmbetamaxplayer",@"betamax",@"audiocoordinator",@"samplebufferaudiotap",@"audiotapfactory",@"genericplayerpool",@"manifestfetcher",@"manifest",@"upnext",@"queue",@"playerfactory",@"multiplayer",@"contextplayer",@"singleplayer",@"playerpool",@"bmaudiotapfactory",@"bmsamplebufferaudiotap"];
  for(NSString *t in terms)if([s containsString:t])return true;return false;
 }
 static char AMType(const char *t){if(!t)return 0;while(*t&&strchr("rnNoORV",*t))t++;return *t;}
