@@ -150,8 +150,8 @@ for label, binary in binaries:
             continue
         start, stop = max(0, row_idx - 8), min(len(lines), row_idx + 140)
         all_sections.append(
-            f"===== {label}: second-level callee of 0x{caller:x} for {parent} =====\\n"
-            f"image={binary.name} target=0x{callee:x}\\n"
+            f"===== {label}: second-level callee of 0x{caller:x} for {parent} =====\n"
+            f"image={binary.name} target=0x{callee:x}\n"
             + "\\n".join(lines[start:stop]))
 
     for address, name, readable in matches:
