@@ -67,6 +67,16 @@ static NSString *AMCategory(NSString *sel,NSString *cls) {
  if([s containsString:@"responsefromsptmedia"]&&[s containsString:@"downloadurl"])return @"DOWNLOAD_URL_RESULT";
  if([s containsString:@"getmediamanifest"]||([c containsString:@"manifest"]&&[s containsString:@"fetch"]))return @"MANIFEST_REQUEST";
  if([s containsString:@"downloadurl"])return @"DOWNLOAD_URL";
+ if([s isEqualToString:@"createaudiotapwithplayeritem:completion:"] ||
+    ([c containsString:@"audiotapfactory"] && [s containsString:@"createaudiotap"]))return @"AUDIO_TAP_FACTORY";
+ if([s isEqualToString:@"processaudiobufferlist:samplerate:"])return @"AUDIO_TAP_PROCESS_DISCOVERY";
+ if([c containsString:@"multiplayerobserverbridge"] &&
+    ([s containsString:@"didstartrenderingatposition"] ||
+     [s containsString:@"didcreateplaybackwithattributes"] ||
+     [s containsString:@"didloadmanifest"] ||
+     [s containsString:@"didbecomereadyatposition"] ||
+     [s containsString:@"didendplaybackwithreason"] ||
+     [s containsString:@"didstartbufferingatposition"]))return @"PLAYBACK_OBSERVER_EVENT";
  if([s containsString:@"providenexttracks"]||[s containsString:@"upnext"]||[s containsString:@"nexttrack"])return @"QUEUE_NEXT";
  if([s containsString:@"createplayer"]||[s containsString:@"acquire"]||[s containsString:@"reserve"]||[s containsString:@"checkout"])return @"PLAYER_CREATE";
  if([s containsString:@"prepare"]||[s containsString:@"updateaudiotap"])return @"PLAYER_PREPARE";
@@ -77,7 +87,7 @@ static NSString *AMCategory(NSString *sel,NSString *cls) {
  return nil;
 }
 static bool AMRelevantClass(NSString *n) {
- NSString *s=n.lowercaseString;NSArray *terms=@[@"internalplayerimpl",@"genericplayerpool",@"manifestfetcher",@"manifest",@"upnext",@"queue",@"playerfactory",@"multiplayer",@"contextplayer",@"singleplayer",@"playerpool"];
+ NSString *s=n.lowercaseString;NSArray *terms=@[@"internalplayerimpl",@"genericplayerpool",@"manifestfetcher",@"manifest",@"upnext",@"queue",@"playerfactory",@"multiplayer",@"contextplayer",@"singleplayer",@"playerpool",@"bmaudiotapfactory",@"bmsamplebufferaudiotap"];
  for(NSString *t in terms)if([s containsString:t])return true;return false;
 }
 static char AMType(const char *t){if(!t)return 0;while(*t&&strchr("rnNoORV",*t))t++;return *t;}
