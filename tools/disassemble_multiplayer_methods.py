@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Find and disassemble Swift methods for Spotify's multiplayer playback classes.
+"""Disassemble multiplayer methods across Spotify and SpotifyShared.
 
 Read-only static analysis. Does not modify or execute Spotify.
 """
@@ -11,117 +11,110 @@ ROOT = pathlib.Path.cwd()
 apps = list((ROOT / "ipa-work" / "extracted").rglob("Spotify.app"))
 if not apps:
     raise SystemExit("Spotify.app not found; run tools/analyze_ipa.py first.")
-binary = apps[0] / "Spotify"
-if not binary.exists():
-    raise SystemExit(f"Spotify executable not found: {binary}")
+app = apps[0]
+binaries = [("Spotify", app / "Spotify"),
+            ("SpotifyShared", app / "Frameworks" / "SpotifyShared.framework" / "SpotifyShared")]
 out = ROOT / "analysis-output"
 out.mkdir(exist_ok=True)
 
-CLASSES = re.compile(
-    r"MultiPlayer_PlayerImpl.*(?:MultiPlayerImpl|InternalPlayerImpl|"
-    r"InternalPlayerFactoryImpl|InternalAudioCoordinator)|"
-    r"PlaylistMixing_TransitionPlayerImpl.*MixingTransitionPlayerImpl|"
-    r"MixingTransitionPlayerImpl",
-    re.I,
-)
-# Include the complete second-player lifecycle and audio-tap path: pool,
-# reservation/group/session ownership, player implementation, and tap classes.
-# Static symbols are evidence for tracing only; they are not safe hook ABIs.
 FOCUS = re.compile(
     r"MultiPlayerImpl|InternalPlayerImpl|InternalPlayerFactoryImpl|"
     r"InternalAudioCoordinator|MixingTransitionPlayerImpl|GenericPlayerPool|"
     r"SinglePlayerImpl|PlayerGroupImpl|MultiPlayerSessionImpl|"
-    r"MultiPlayerAudioTap|BMAudioTap",
+    r"MultiPlayerAudioTap|BMAudioTap|audioTapDidEmitOutput|"
+    r"createAudioTapWithPlayerItem|enableAudioTap",
     re.I,
 )
+EXCLUDE = ("metadata", "type metadata", "nominal type descriptor",
+           "protocol conformance", "witness table", "field offset")
 
-def run(args, *, input_text=None, timeout=900):
-    p = subprocess.run(args, input=input_text, stdout=subprocess.PIPE,
-                       stderr=subprocess.STDOUT, text=True, errors="replace",
-                       timeout=timeout)
+def run(args, *, timeout=1200):
+    p = subprocess.run(args, stdout=subprocess.PIPE, stderr=subprocess.STDOUT,
+                       text=True, errors="replace", timeout=timeout)
     return p.stdout
 
-print("[methods] collecting Spotify symbols", flush=True)
-nm_text = run(["nm", "-a", str(binary)], timeout=600)
-raw = []
-for line in nm_text.splitlines():
-    parts = line.split()
-    if len(parts) >= 2 and re.fullmatch(r"[0-9a-fA-F]{8,16}", parts[0]):
-        raw.append((int(parts[0], 16), parts[-1]))
+all_indexes, all_sections, errors = [], [], []
+for label, binary in binaries:
+    if not binary.exists():
+        errors.append(f"{label}: binary missing: {binary}")
+        continue
+    print(f"[methods] collecting {label} symbols", flush=True)
+    nm_text = run(["nm", "-a", str(binary)], timeout=600)
+    raw = []
+    for line in nm_text.splitlines():
+        parts = line.split()
+        if len(parts) >= 2 and re.fullmatch(r"[0-9a-fA-F]{8,16}", parts[0]):
+            raw.append((int(parts[0], 16), parts[-1]))
 
-try:
-    demangler = run(["xcrun", "--find", "swift-demangle"], timeout=30).strip()
-    if not demangler or not pathlib.Path(demangler).exists():
-        raise RuntimeError("xcrun did not locate swift-demangle")
-    # --compact emits one demangled result per input symbol, preserving order.
-    demangled_text = run([demangler, "--compact"],
-                         input_text="\n".join(name for _, name in raw),
-                         timeout=900)
-    demangled = demangled_text.splitlines()
-    if len(demangled) != len(raw):
-        raise RuntimeError(
-            f"symbol/demangle count mismatch: {len(raw)} raw vs "
-            f"{len(demangled)} demangled lines"
-        )
-except Exception as exc:
-    (out / "spotify-multiplayer-methods-error.txt").write_text(
-        f"Swift demangling unavailable: {exc}\n", encoding="utf-8")
-    raise SystemExit(f"Could not demangle Spotify Swift symbols: {exc}")
+    matches = []
+    # Preserve Objective-C method symbols verbatim; demangle Swift symbols in batch.
+    swift = [(a, n) for a, n in raw if n.startswith(("$s", "_$s"))]
+    readable_by_name = {}
+    if swift:
+        demangler = run(["xcrun", "--find", "swift-demangle"], timeout=30).strip()
+        if not demangler:
+            errors.append(f"{label}: swift-demangle unavailable")
+        else:
+            dm = run([demangler, "--compact"], timeout=900) if False else None
+            proc = subprocess.run([demangler, "--compact"],
+                input="\n".join(n for _, n in swift), stdout=subprocess.PIPE,
+                stderr=subprocess.STDOUT, text=True, errors="replace", timeout=900)
+            vals = proc.stdout.splitlines()
+            if len(vals) == len(swift):
+                readable_by_name.update({n: v for (_, n), v in zip(swift, vals)})
+            else:
+                errors.append(f"{label}: demangle count mismatch {len(swift)} vs {len(vals)}")
 
-matches = []
-for (address, mangled), readable in zip(raw, demangled):
-    if FOCUS.search(readable) and not any(x in readable for x in
-            ("metadata", "type metadata", "nominal type descriptor",
-             "protocol conformance", "witness table", "field offset")):
-        matches.append((address, mangled, readable))
+    for address, name in raw:
+        readable = readable_by_name.get(name, name)
+        if FOCUS.search(readable) and not any(x in readable for x in EXCLUDE):
+            matches.append((address, name, readable))
 
-# Preserve a compact symbol-to-address index for review and future hook work.
-index_lines = [
-    f"0x{address:016x}  {mangled}\n    {readable}"
-    for address, mangled, readable in matches
-]
+    all_indexes.append(f"===== {label} =====\n" + "\n\n".join(
+        f"0x{a:016x}  {n}\n    {r}" for a, n, r in matches))
+    print(f"[methods] {label}: {len(matches)} candidate symbols", flush=True)
+    if not matches:
+        continue
+
+    print(f"[methods] disassembling {label} __text", flush=True)
+    assembly = run(["otool", "-tvV", str(binary)], timeout=1800)
+    if not assembly.strip():
+        errors.append(f"{label}: otool returned empty assembly")
+        continue
+    lines = assembly.splitlines()
+    rows = []
+    for i, line in enumerate(lines):
+        m = re.match(r"^\s*([0-9a-fA-F]{8,16})\s+(.+)$", line)
+        if m:
+            rows.append((i, int(m.group(1), 16)))
+    if not rows:
+        errors.append(f"{label}: no address-bearing instruction rows")
+        continue
+    seen = set()
+    for address, name, readable in matches:
+        # Binary search would be faster, but this list is modest after filtering.
+        nearest = min(rows, key=lambda item: abs(item[1] - address))
+        row_idx, found = nearest
+        distance = abs(found - address)
+        if distance > 32:
+            continue
+        start, stop = max(0, row_idx - 8), min(len(lines), row_idx + 121)
+        key = (start, stop)
+        if key in seen:
+            continue
+        seen.add(key)
+        all_sections.append(
+            f"===== {label}: {readable} =====\n"
+            f"symbol=0x{address:x} matched=0x{found:x} distance={distance}\n"
+            + "\n".join(lines[start:stop]))
+
 (out / "spotify-multiplayer-method-index.txt").write_text(
-    "\n\n".join(index_lines) + "\n", encoding="utf-8")
-print(f"[methods] found {len(matches)} candidate method symbols", flush=True)
-
-if not matches:
-    raise SystemExit("No candidate method symbols found; inspect the method index.")
-
-print("[methods] disassembling Spotify __text", flush=True)
-assembly = run(["otool", "-tvV", str(binary)], timeout=1200)
-if not assembly.strip():
-    raise SystemExit("otool returned empty assembly.")
-lines = assembly.splitlines()
-rows = []
-for i, line in enumerate(lines):
-    m = re.match(r"^\s*([0-9a-fA-F]{8,16})\s+(.+)$", line)
-    if m:
-        rows.append((i, int(m.group(1), 16)))
-
-if not rows:
-    raise SystemExit("Could not parse address-bearing otool instruction rows.")
-
-sections = []
-seen = set()
-for address, mangled, readable in matches:
-    nearest = min(rows, key=lambda item: abs(item[1] - address))
-    row_idx, found = nearest
-    distance = abs(found - address)
-    if distance > 32:
-        continue
-    # A method's start may be preceded by a compact Swift prologue. Keep 8
-    # instructions before and 80 after the symbol start, capped per method.
-    start, stop = max(0, row_idx - 8), min(len(lines), row_idx + 81)
-    key = (start, stop)
-    if key in seen:
-        continue
-    seen.add(key)
-    sections.append(
-        f"===== {readable} =====\n"
-        f"symbol=0x{address:x} matched=0x{found:x} distance={distance}\n"
-        + "\n".join(lines[start:stop])
-    )
-
+    "\n\n".join(all_indexes) + "\n", encoding="utf-8")
 (out / "spotify-multiplayer-method-disassembly.txt").write_text(
-    "\n\n".join(sections)[:2_000_000], encoding="utf-8")
-print(f"[methods] wrote {len(sections)} focused disassembly windows", flush=True)
+    "\n\n".join(all_sections)[:8_000_000], encoding="utf-8")
+if errors:
+    (out / "spotify-multiplayer-methods-error.txt").write_text(
+        "\n".join(errors) + "\n", encoding="utf-8")
+print(f"[methods] wrote {len(all_sections)} disassembly windows", flush=True)
+if not all_sections:
+    raise SystemExit("No focused method disassembly windows were produced.")
