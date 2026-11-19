@@ -2,6 +2,7 @@
 #import <AudioToolbox/AudioToolbox.h>
 #import <objc/runtime.h>
 #include <dlfcn.h>
+#include <mach-o/dyld.h>
 #include <cstdlib>
 #include <cstring>
 
