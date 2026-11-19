@@ -12,6 +12,7 @@ on:
       - "AutoMixDiscoveryV6.mm"
       - "BeatThisCoreML.mm"
       - "BetaSourceProcessorProbe.mm"
+      - "BetaRenderBoundaryProbe.mm"
       - "BetaAudioTapProbe.mm"
       - "BetaPlaybackTimingProbe.mm"
       - "Makefile"
