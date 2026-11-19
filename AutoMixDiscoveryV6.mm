@@ -7,6 +7,7 @@
 extern "C" void AMBetaAudioTapProbeInstall(void);
 extern "C" NSString *AMBetaAudioTapProbeReport(void);
 extern "C" NSString *AMBetaRenderBoundaryProbeReport(void);
+extern "C" NSString *AMBetaSourceProcessorCallsiteReport(void);
 extern "C" void AMBetaPlaybackTimingProbeInstall(void);
 extern "C" NSString *AMBetaPlaybackTimingProbeReport(void);
 
@@ -123,6 +124,8 @@ static NSString *AMScan(void) {
     for (Class c in targets) AMAppendClass(report, c);
     [report appendFormat:@"\\n\\n========== BETA SOURCE-PROCESSOR + RENDER-BOUNDARY INVENTORY ==========\\n%@\\n",
       AMBetaRenderBoundaryProbeReport() ?: @"Render-boundary inventory unavailable."];
+    [report appendFormat:@"\\n\\n========== BETA SOURCE-PROCESSOR CALL-SITE SCAN ==========\\n%@\\n",
+      AMBetaSourceProcessorCallsiteReport() ?: @"Call-site scan unavailable."];
     [report appendFormat:@"\\n\\n========== BETA AUDIO TAP PROBE ==========\\n%@\\n",
       AMBetaAudioTapProbeReport() ?: @"Probe report unavailable."];
     [report appendFormat:@"\\n\\n========== BETA PLAYBACK TIMING TRACE ==========\\n%@\\n",
