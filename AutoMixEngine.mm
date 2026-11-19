@@ -5,6 +5,11 @@
 
 #include "smartmix/BeatThisCoreML.h"
 #include "smartmix/BetaSourceProcessorProbe.h"
+
+extern "C" void AMBetaAudioTapProbeInstall(void);
+extern "C" NSString *AMBetaAudioTapProbeReport(void);
+extern "C" void AMBetaPlaybackTimingProbeInstall(void);
+extern "C" NSString *AMBetaPlaybackTimingProbeReport(void);
 #include "smartmix/BeatThisSpectrogram.hpp"
 #include "smartmix/BeatThisChunking.hpp"
 #include <algorithm>
@@ -52,11 +57,16 @@ static NSString *AMBuildReport(void) {
     for (NSString *symbol in symbols) {
         [report appendFormat:@"%@: %@\n", symbol, AMSymbolState(symbol)];
     }
+    [report appendString:@"\n\nREAD-ONLY AUDIO TAP PROBE:\\n"];
+    [report appendString:AMBetaAudioTapProbeReport() ?: @"Tap probe report unavailable.\\n"];
+    [report appendString:@"\\nPLAYBACK TIMING PROBE:\\n"];
+    [report appendString:AMBetaPlaybackTimingProbeReport() ?: @"Timing probe report unavailable.\\n"];
     [report appendString:
-        @"\nStatic disassembly has clarified the callback prototype, but Beta appears to "
-         "have a single global processor slot. We do not replace it. Next gate: confirm "
-         "runtime callback ownership, incoming next-track PCM, source identity, frame clock, "
-         "and exact rejoin on-device. AutoMix stays inactive until those checks pass."];
+        @"\\nStatic disassembly has clarified the callback prototype, but Beta appears to "
+         "have a single global processor slot. We do not replace it. The probes below are "
+         "read-only and chain original callbacks. No PCM is dereferenced or changed. "
+         "AutoMix stays inactive until incoming next-track PCM, source identity, frame clock, "
+         "and exact rejoin are verified."]; 
     return report;
 }
 
@@ -251,6 +261,8 @@ static void initAutoMixEngine(void) {
     dispatch_async(dispatch_get_main_queue(), ^{
         dispatch_after(dispatch_time(DISPATCH_TIME_NOW, 3 * NSEC_PER_SEC),
                        dispatch_get_main_queue(), ^{
+            AMBetaAudioTapProbeInstall();
+            AMBetaPlaybackTimingProbeInstall();
             [[AutoMixStatusOverlay shared] install];
         });
     });
