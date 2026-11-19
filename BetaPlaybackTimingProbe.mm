@@ -56,6 +56,12 @@ static void V5(id s,SEL c,id a,id b,id d,id e,id f){AMLog(@"ENTER",s,c,A5(a,b,d,
 static id O6(id s,SEL c,id a,id b,id d,id e,id f,id g){AMLog(@"ENTER",s,c,A6(a,b,d,e,f,g),nil);IMP p=AMOriginal(s,c);id r=p?((id(*)(id,SEL,id,id,id,id,id,id))p)(s,c,a,b,d,e,f,g):nil;AMLog(@"RETURN",s,c,A0(),r);return r;}
 static void V6(id s,SEL c,id a,id b,id d,id e,id f,id g){AMLog(@"ENTER",s,c,A6(a,b,d,e,f,g),nil);IMP p=AMOriginal(s,c);if(p)((void(*)(id,SEL,id,id,id,id,id,id))p)(s,c,a,b,d,e,f,g);AMLog(@"RETURN",s,c,A0(),nil);}
 
+static bool AMLifecycleClass(NSString *name) {
+ NSString *c=name.lowercaseString;
+ if([c containsString:@"alert"]||[c containsString:@"notification"]||[c containsString:@"ui"])return false;
+ return [c containsString:@"player"]||[c containsString:@"playback"]||[c containsString:@"session"]||
+        [c containsString:@"context"]||[c containsString:@"observer"]||[c containsString:@"coordinator"];
+}
 static NSString *AMCategory(NSString *sel,NSString *cls) {
  NSString *s=sel.lowercaseString,*c=cls.lowercaseString;
  if([s containsString:@"responsefromsptmedia"]&&[s containsString:@"downloadurl"])return @"DOWNLOAD_URL_RESULT";
@@ -64,8 +70,10 @@ static NSString *AMCategory(NSString *sel,NSString *cls) {
  if([s containsString:@"providenexttracks"]||[s containsString:@"upnext"]||[s containsString:@"nexttrack"])return @"QUEUE_NEXT";
  if([s containsString:@"createplayer"]||[s containsString:@"acquire"]||[s containsString:@"reserve"]||[s containsString:@"checkout"])return @"PLAYER_CREATE";
  if([s containsString:@"prepare"]||[s containsString:@"updateaudiotap"])return @"PLAYER_PREPARE";
- if([s containsString:@"didstartplayback"]||[s containsString:@"playbackstarted"]||[s containsString:@"onstartplayback"]||[s isEqualToString:@"startplayback"])return @"TRACK_START";
- if([s containsString:@"didfinishplayback"]||[s containsString:@"playbackended"]||[s containsString:@"trackended"]||[s containsString:@"playbackfinished"])return @"TRACK_END";
+ if(AMLifecycleClass(cls)&&([s containsString:@"didstartplayback"]||[s containsString:@"playbackstarted"]||
+    [s containsString:@"onstartplayback"]||[s isEqualToString:@"startplayback"]))return @"TRACK_START";
+ if(AMLifecycleClass(cls)&&([s containsString:@"didfinishplayback"]||[s containsString:@"playbackended"]||
+    [s containsString:@"trackended"]||[s containsString:@"playbackfinished"]))return @"TRACK_END";
  return nil;
 }
 static bool AMRelevantClass(NSString *n) {
