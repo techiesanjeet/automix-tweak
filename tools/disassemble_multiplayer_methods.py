@@ -24,11 +24,14 @@ CLASSES = re.compile(
     r"MixingTransitionPlayerImpl",
     re.I,
 )
-# Keep the search narrow: these are the classes that own player creation,
-# playback state, audio coordination, and playlist transition orchestration.
+# Include the complete second-player lifecycle and audio-tap path: pool,
+# reservation/group/session ownership, player implementation, and tap classes.
+# Static symbols are evidence for tracing only; they are not safe hook ABIs.
 FOCUS = re.compile(
     r"MultiPlayerImpl|InternalPlayerImpl|InternalPlayerFactoryImpl|"
-    r"InternalAudioCoordinator|MixingTransitionPlayerImpl",
+    r"InternalAudioCoordinator|MixingTransitionPlayerImpl|GenericPlayerPool|"
+    r"SinglePlayerImpl|PlayerGroupImpl|MultiPlayerSessionImpl|"
+    r"MultiPlayerAudioTap|BMAudioTap",
     re.I,
 )
 
