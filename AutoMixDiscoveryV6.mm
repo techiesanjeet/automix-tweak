@@ -6,6 +6,8 @@
 
 extern "C" void AMBetaAudioTapProbeInstall(void);
 extern "C" NSString *AMBetaAudioTapProbeReport(void);
+extern "C" void AMBetaPlaybackTimingProbeInstall(void);
+extern "C" NSString *AMBetaPlaybackTimingProbeReport(void);
 
 static NSString *AMSafe(const char *s) { return s ? [NSString stringWithUTF8String:s] : @""; }
 static BOOL AMHas(NSString *s, NSArray<NSString *> *terms) {
@@ -185,6 +187,7 @@ __attribute__((constructor)) static void AutoMixDiscoveryV6(void) {
     @autoreleasepool {
       dispatch_after(dispatch_time(DISPATCH_TIME_NOW, (int64_t)(7*NSEC_PER_SEC)), dispatch_get_main_queue(), ^{
         AMBetaAudioTapProbeInstall();
+        AMBetaPlaybackTimingProbeInstall();
         UIWindow *window=nil;
         for (UIScene *scene in UIApplication.sharedApplication.connectedScenes) {
           if (![scene isKindOfClass:UIWindowScene.class] || scene.activationState!=UISceneActivationStateForegroundActive) continue;
