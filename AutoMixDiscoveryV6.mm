@@ -27,7 +27,8 @@ static BOOL AMIsTargetAppImage(Class c) {
            [image containsString:@"/spotify"];
 }
 static NSArray<NSString *> *AMClassTerms(void) {
-    return @[@"automix",@"mixing",@"crossfade",@"cross-fade",@"transition",@"multiplayer",
+    return @[@"automix",@"mixing",@"crossfade",@"cross-fade",@"transition",@"multiplayer",@"betamax",
+      @"samplebufferaudiotap",@"audiotapfactory",@"audiobuffer",@"audiooutput",@"audiorender",
       @"multi_player",@"playerpool",@"player_pool",@"internalplayer",@"playergroup",
       @"audiocoordinator",@"audiotap",@"overlap",@"deck",@"playback",@"tracklist",
       @"playerimpl",@"playerfactory",@"sessionimpl",@"preset",@"preview",@"transitionloader",
@@ -109,7 +110,7 @@ static NSString *AMScan(void) {
     NSMutableString *report = [NSMutableString stringWithFormat:
       @"AUTOMIX DISCOVERY V6 — SPOTIFY-ONLY DEEP METADATA\nBundle: %@\nApp version: %@\nBuild: %@\nDate: %@\n"
       @"Runtime classes enumerated: %d\nSpotify image classes: filtered by class_getImageName()\nMatched relevant classes: %lu\n\n"
-      @"READ-ONLY: This scan enumerates runtime class metadata. It does not instantiate Spotify objects, call Spotify methods, "
+      @"READ-ONLY: This scan enumerates runtime class metadata. It does not instantiate player objects, call player methods, "
       @"inspect audio buffers, decode protected media, or access track contents.\n"
       @"Objective-C runtime metadata does not expose all Swift method bodies or necessarily all Swift types. "
       @"Presence of a player pool or transition type is not proof of dual audible playback.\n\n"
