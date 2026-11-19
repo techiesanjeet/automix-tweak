@@ -123,8 +123,8 @@ for label, binary in binaries:
         start, stop = max(0, row_idx - 8), min(len(lines), row_idx + 180)
         all_sections.append(
             f"===== {label}: helper for {parent} =====\n"
-            f"image={binary.name} target=0x{target:x} owner={owner_text}\\n"
-            + "\\n".join(lines[start:stop]))
+            f"image={binary.name} target=0x{target:x} owner={owner_text}\n"
+            + "\n".join(lines[start:stop]))
     for address, name, readable in matches:
         # Binary search would be faster, but this list is modest after filtering.
         nearest = min(rows, key=lambda item: abs(item[1] - address))
