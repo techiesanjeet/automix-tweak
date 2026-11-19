@@ -138,6 +138,11 @@ extern "C" NSString *AMBetaAudioTapProbeReport(void) {
     const int state = gInstallState.load(std::memory_order_acquire);
     NSString *status = @"not attempted";
     switch (state) {
+        case 0:
+            status = gInstallAttempts.load(std::memory_order_relaxed) > 0
+                ? @"waiting; retrying runtime class lookup"
+                : @"not started";
+            break;
         case 1: status = @"installed; original callback is chained"; break;
         case 2: status = @"target class not loaded"; break;
         case 3: status = @"callback method not found"; break;
