@@ -147,7 +147,7 @@ extern "C" NSString *AMBetaAudioTapProbeReport(void) {
     }
 
     NSMutableString *report = [NSMutableString stringWithFormat:
-        @"Hook status: %@\nCallback calls observed: %llu\nOverflow callbacks: %llu\n",
+        @"Hook status: %@\nInstall attempts: %u\nCallback calls observed: %llu\nOverflow callbacks: %llu\n",
         status,
         gInstallAttempts.load(std::memory_order_relaxed),
         (unsigned long long)gTotalCallbacks.load(std::memory_order_relaxed),
