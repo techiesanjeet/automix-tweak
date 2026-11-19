@@ -91,6 +91,40 @@ for label, binary in binaries:
         errors.append(f"{label}: no address-bearing instruction rows")
         continue
     seen = set()
+
+    # Trace direct helper calls made by MultiPlayerAudioTap callbacks in this
+    # same Mach-O image. A target is never resolved against the other image.
+    callback_symbols = [(a, n, r) for a, n, r in matches
+                        if "audioTapDidEmitOutput" in r]
+    helper_targets = set()
+    for address, name, readable in callback_symbols:
+        nearest = min(rows, key=lambda item: abs(item[1] - address))
+        row_idx, found = nearest
+        if abs(found - address) > 32:
+            continue
+        # Inspect the callback's own instruction window and collect direct BLs.
+        for asm_line in lines[row_idx:min(len(lines), row_idx + 90)]:
+            bm = re.search(r"\\bbl\\s+(0x[0-9a-fA-F]+)", asm_line)
+            if bm:
+                target = int(bm.group(1), 16)
+                # Keep only in-image calls; external stubs are not helper code.
+                if any(target == ins_addr for _, ins_addr in rows):
+                    helper_targets.add((target, readable))
+    for target, parent in sorted(helper_targets):
+        nearest = min(rows, key=lambda item: abs(item[1] - target))
+        row_idx, found = nearest
+        if abs(found - target) > 4:
+            errors.append(f"{label}: helper target 0x{target:x} not aligned to instruction")
+            continue
+        # Resolve the closest preceding symbol in this image, for context only.
+        preceding = [(a, n, r) for a, n, r in matches if a <= target]
+        owner = max(preceding, key=lambda item: item[0]) if preceding else None
+        owner_text = f"{owner[2]} @0x{owner[0]:x}" if owner else "stripped/unnamed local helper"
+        start, stop = max(0, row_idx - 8), min(len(lines), row_idx + 180)
+        all_sections.append(
+            f"===== {label}: helper for {parent} =====\\n"
+            f"image={binary.name} target=0x{target:x} owner={owner_text}\\n"
+            + "\\n".join(lines[start:stop]))
     for address, name, readable in matches:
         # Binary search would be faster, but this list is modest after filtering.
         nearest = min(rows, key=lambda item: abs(item[1] - address))
