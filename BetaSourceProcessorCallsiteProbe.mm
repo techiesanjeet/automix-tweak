@@ -31,7 +31,7 @@ extern "C" NSString *AMBetaSourceProcessorCallsiteReport(void) {
     for (const char *name : names) {
         void *p = dlsym(RTLD_DEFAULT, name);
         if (p) targets.emplace(reinterpret_cast<uintptr_t>(p), name);
-        [report appendFormat:@"%@: %@\n", name, p ? @"resolved" : @"not exported"];
+        [report appendFormat:@"%s: %@\n", name, p ? @"resolved" : @"not exported"];
     }
 
     if (targets.empty()) {
