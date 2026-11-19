@@ -1,5 +1,6 @@
 #import <Foundation/Foundation.h>
 #import <objc/runtime.h>
+#import <dispatch/dispatch.h>
 #include <atomic>
 #include <cstdint>
 #include <cstring>
@@ -18,6 +19,9 @@ static AMTapSlot gSlots[8];
 static std::atomic<uint64_t> gTotalCallbacks{0};
 static std::atomic<uint64_t> gOverflowCallbacks{0};
 static std::atomic<int> gInstallState{0}; // 0 pending, 1 installed, 2 class missing, 3 method missing, 4 ABI mismatch
+static std::atomic<unsigned> gInstallAttempts{0};
+static std::atomic<bool> gInstallRequested{false};
+static constexpr unsigned kMaxInstallAttempts = 180;
 static IMP gOriginalImplementation = nullptr;
 
 using AMTapImplementation = void (*)(id, SEL, const void *);
@@ -63,22 +67,40 @@ static void AMTapDidEmitOutput(id self, SEL selector, const void *opaqueOutput) 
 }
 } // namespace
 
-extern "C" void AMBetaAudioTapProbeInstall(void) {
+namespace {
+static void AMBetaAudioTapProbeAttempt(void) {
     int expected = 0;
-    if (!gInstallState.compare_exchange_strong(expected, -1, std::memory_order_relaxed)) return;
+    if (!gInstallState.compare_exchange_strong(expected, -1, std::memory_order_acq_rel)) return;
 
+    const unsigned attempt = gInstallAttempts.fetch_add(1, std::memory_order_relaxed) + 1;
     Class tapClass = objc_getClass("_TtC22MultiPlayer_PlayerImpl19MultiPlayerAudioTap");
     if (!tapClass) {
-        gInstallState.store(2, std::memory_order_release);
-        NSLog(@"[AutoMixTapProbe] MultiPlayerAudioTap class not loaded");
+        if (attempt >= kMaxInstallAttempts) {
+            gInstallState.store(2, std::memory_order_release);
+            NSLog(@"[AutoMixTapProbe] target class did not load after %u attempts", attempt);
+            return;
+        }
+        gInstallState.store(0, std::memory_order_release);
+        dispatch_after(dispatch_time(DISPATCH_TIME_NOW, NSEC_PER_SEC),
+                       dispatch_get_global_queue(QOS_CLASS_UTILITY, 0), ^{
+            AMBetaAudioTapProbeAttempt();
+        });
         return;
     }
 
     SEL selector = sel_registerName("audioTapDidEmitOutput:");
     Method method = class_getInstanceMethod(tapClass, selector);
     if (!method) {
-        gInstallState.store(3, std::memory_order_release);
-        NSLog(@"[AutoMixTapProbe] audioTapDidEmitOutput: method not found");
+        if (attempt >= kMaxInstallAttempts) {
+            gInstallState.store(3, std::memory_order_release);
+            NSLog(@"[AutoMixTapProbe] callback method not found after %u attempts", attempt);
+            return;
+        }
+        gInstallState.store(0, std::memory_order_release);
+        dispatch_after(dispatch_time(DISPATCH_TIME_NOW, NSEC_PER_SEC),
+                       dispatch_get_global_queue(QOS_CLASS_UTILITY, 0), ^{
+            AMBetaAudioTapProbeAttempt();
+        });
         return;
     }
 
@@ -86,20 +108,30 @@ extern "C" void AMBetaAudioTapProbeInstall(void) {
     if (!encoding || !strstr(encoding, "BMAudioTapOutput") ||
         !strstr(encoding, "v80@0:8")) {
         gInstallState.store(4, std::memory_order_release);
-        NSLog(@"[AutoMixTapProbe] unexpected callback ABI: %s", encoding ?: "(null)");
+        NSLog(@"[AutoMixTapProbe] unexpected callback ABI; no hook installed: %s", encoding ?: "(null)");
         return;
     }
 
-    gOriginalImplementation = method_getImplementation(method);
-    if (!gOriginalImplementation) {
+    IMP original = method_getImplementation(method);
+    if (!original) {
         gInstallState.store(3, std::memory_order_release);
         return;
     }
-
+    gOriginalImplementation = original;
     IMP replaced = method_setImplementation(method, reinterpret_cast<IMP>(AMTapDidEmitOutput));
-    if (replaced && replaced != gOriginalImplementation) gOriginalImplementation = replaced;
+    if (replaced && replaced != original) gOriginalImplementation = replaced;
     gInstallState.store(1, std::memory_order_release);
-    NSLog(@"[AutoMixTapProbe] chained read-only tap observer installed; ABI=%s", encoding);
+    NSLog(@"[AutoMixTapProbe] chained read-only observer installed after %u attempts; ABI=%s",
+          attempt, encoding);
+}
+} // namespace
+
+extern "C" void AMBetaAudioTapProbeInstall(void) {
+    bool expected = false;
+    if (!gInstallRequested.compare_exchange_strong(expected, true, std::memory_order_acq_rel)) return;
+    dispatch_async(dispatch_get_global_queue(QOS_CLASS_UTILITY, 0), ^{
+        AMBetaAudioTapProbeAttempt();
+    });
 }
 
 extern "C" NSString *AMBetaAudioTapProbeReport(void) {
@@ -117,6 +149,7 @@ extern "C" NSString *AMBetaAudioTapProbeReport(void) {
     NSMutableString *report = [NSMutableString stringWithFormat:
         @"Hook status: %@\nCallback calls observed: %llu\nOverflow callbacks: %llu\n",
         status,
+        gInstallAttempts.load(std::memory_order_relaxed),
         (unsigned long long)gTotalCallbacks.load(std::memory_order_relaxed),
         (unsigned long long)gOverflowCallbacks.load(std::memory_order_relaxed)];
 
