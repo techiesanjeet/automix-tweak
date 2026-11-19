@@ -4,6 +4,7 @@ on:
     branches:
       - main
       - master
+      - feature/offline-smartmix-core
   pull_request:
     branches:
       - main
