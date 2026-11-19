@@ -121,6 +121,8 @@ static NSString *AMScan(void) {
     for (Class c in targets) AMAppendClass(report, c);
     [report appendFormat:@"\\n\\n========== BETA AUDIO TAP PROBE ==========\\n%@\\n",
       AMBetaAudioTapProbeReport() ?: @"Probe report unavailable."];
+    [report appendFormat:@"\\n\\n========== BETA PLAYBACK TIMING TRACE ==========\\n%@\\n",
+      AMBetaPlaybackTimingProbeReport() ?: @"Timing probe report unavailable."];
     [report appendFormat:@"\n\n========== SCAN SUMMARY ==========\nTarget classes inspected: %lu\nReport characters: %lu\n",
       (unsigned long)targets.count, (unsigned long)report.length];
     NSError *error = nil;
