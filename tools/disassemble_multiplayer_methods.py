@@ -134,7 +134,7 @@ for label, binary in binaries:
         if abs(found - target) > 4:
             continue
         for asm_line in lines[row_idx:min(len(lines), row_idx + 180)]:
-            bm = re.search(r"\\bbl\\s+(0x[0-9a-fA-F]+)", asm_line)
+            bm = re.search(r"\bbl\s+(0x[0-9a-fA-F]+)", asm_line)
             if not bm:
                 continue
             callee = int(bm.group(1), 16)
