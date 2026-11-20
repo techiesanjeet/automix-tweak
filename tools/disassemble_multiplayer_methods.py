@@ -3,6 +3,7 @@
 
 Read-only static analysis. Does not modify or execute Spotify.
 """
+import bisect
 import pathlib
 import re
 import subprocess
@@ -90,6 +91,14 @@ for label, binary in binaries:
     if not rows:
         errors.append(f"{label}: no address-bearing instruction rows")
         continue
+    # Address rows are sorted once; binary search avoids repeated O(n) scans
+    # for every callback/helper target in very large stripped Mach-O images.
+    rows.sort(key=lambda item: item[1])
+    row_addresses = [item[1] for item in rows]
+    def nearest_row(address):
+        pos = bisect.bisect_left(row_addresses, address)
+        candidates = rows[max(0, pos - 1):min(len(rows), pos + 1)]
+        return min(candidates, key=lambda item: abs(item[1] - address))
     seen = set()
 
     # Trace direct helper calls made by MultiPlayerAudioTap callbacks in this
@@ -98,7 +107,7 @@ for label, binary in binaries:
                         if "audioTapDidEmitOutput" in r]
     helper_targets = set()
     for address, name, readable in callback_symbols:
-        nearest = min(rows, key=lambda item: abs(item[1] - address))
+        nearest = nearest_row(address)
         row_idx, found = nearest
         if abs(found - address) > 32:
             continue
@@ -111,7 +120,7 @@ for label, binary in binaries:
                 if any(target == ins_addr for _, ins_addr in rows):
                     helper_targets.add((target, readable))
     for target, parent in sorted(helper_targets):
-        nearest = min(rows, key=lambda item: abs(item[1] - target))
+        nearest = nearest_row(target)
         row_idx, found = nearest
         if abs(found - target) > 4:
             errors.append(f"{label}: helper target 0x{target:x} not aligned to instruction")
@@ -129,7 +138,7 @@ for label, binary in binaries:
     # bounded: it disassembles direct in-image callees only, not a recursive graph.
     second_level = set()
     for target, parent in sorted(helper_targets):
-        nearest = min(rows, key=lambda item: abs(item[1] - target))
+        nearest = nearest_row(target)
         row_idx, found = nearest
         if abs(found - target) > 4:
             continue
@@ -148,7 +157,7 @@ for label, binary in binaries:
     # callback helper delegates field decoding/conversion to small leaf routines.
     third_level = set()
     for callee, caller, parent in sorted(second_level):
-        nearest = min(rows, key=lambda item: abs(item[1] - callee))
+        nearest = nearest_row(callee)
         row_idx, found = nearest
         if abs(found - callee) > 4:
             continue
@@ -162,7 +171,7 @@ for label, binary in binaries:
             if any(leaf == ins_addr for _, ins_addr in rows):
                 third_level.add((leaf, callee, parent))
     for leaf, caller, parent in sorted(third_level):
-        nearest = min(rows, key=lambda item: abs(item[1] - leaf))
+        nearest = nearest_row(leaf)
         row_idx, found = nearest
         if abs(found - leaf) > 4:
             continue
@@ -173,7 +182,7 @@ for label, binary in binaries:
             + "\n".join(lines[start:stop]))
 
     for callee, caller, parent in sorted(second_level):
-        nearest = min(rows, key=lambda item: abs(item[1] - callee))
+        nearest = nearest_row(callee)
         row_idx, found = nearest
         if abs(found - callee) > 4:
             continue
@@ -185,7 +194,7 @@ for label, binary in binaries:
 
     for address, name, readable in matches:
         # Binary search would be faster, but this list is modest after filtering.
-        nearest = min(rows, key=lambda item: abs(item[1] - address))
+        nearest = nearest_row(address)
         row_idx, found = nearest
         distance = abs(found - address)
         if distance > 32:
