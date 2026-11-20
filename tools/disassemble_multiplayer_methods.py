@@ -45,7 +45,7 @@ for label, binary in binaries:
     for line in nm_text.splitlines():
         parts = line.split()
         if len(parts) >= 2 and re.fullmatch(r"[0-9a-fA-F]{8,16}", parts[0]):
-            raw.append((int(parts[0], 16), parts[-1]))
+            raw.append((int(parts[0], 16), " ".join(parts[2:])))
 
     matches = []
     # Preserve Objective-C method symbols verbatim; demangle Swift symbols in batch.
