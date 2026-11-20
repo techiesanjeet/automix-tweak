@@ -20,9 +20,11 @@ out.mkdir(exist_ok=True)
 
 TARGETS = re.compile(
     r"_TtC22MultiPlayer_PlayerImpl(?:24InternalAudioCoordinator|"
-    r"25InternalPlayerFactoryImpl|18InternalPlayerImpl|15MultiPlayerImpl)\b|"
+    r"25InternalPlayerFactoryImpl|18InternalPlayerImpl|15MultiPlayerImpl|"
+    r"19MultiPlayerAudioTap)\\b|"
     r"_TtC35PlaylistMixing_TransitionPlayerImpl(?:26MixingTransitionPlayerImpl|"
-    r"33MixingTransitionPlayerServiceImpl)\b",
+    r"33MixingTransitionPlayerServiceImpl)\\b|"
+    r"(?:BMAudioTapFactory|BMAudioTap|BMBetamaxPlayerImpl|BMPlayerSource)\\b",
     re.I,
 )
 
