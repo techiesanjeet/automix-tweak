@@ -2,18 +2,18 @@
 AutoMix diagnostics loaded; observation only; no private playback methods are called.
 --- snapshot: dylib load ---
 bundle=com.s.z version=9.1.90 build=919002269
-symbol SGAutoMixSupportedVersion: FOUND 0x113f8f1ac
-symbol SGAutoMixEnabled: FOUND 0x113f8f204
-symbol SGAutoMixUsesBeatMatching: FOUND 0x113f8f214
-symbol SGAutoMixBlendSeconds: FOUND 0x113f8f23c
-symbol SGAutoMixPlayerAvailable: FOUND 0x113f9029c
-symbol SGAutoMixApplyCurrentPlayback: FOUND 0x113f90340
-symbol SGAutoMixPlayerStateChanged: FOUND 0x113f911a8
-symbol SGAutoMixSettingsChanged: FOUND 0x113f91544
-symbol SGAutoMixStatus: FOUND 0x113f91590
-symbol SGAutoMixLastTransition: FOUND 0x113f915b8
-symbol SGAutoMixHasTransition: FOUND 0x113f8f564
-symbol SGAutoMixConfiguration: FOUND 0x113f8fa2c
+symbol SGAutoMixSupportedVersion: FOUND 0x1127371ac
+symbol SGAutoMixEnabled: FOUND 0x112737204
+symbol SGAutoMixUsesBeatMatching: FOUND 0x112737214
+symbol SGAutoMixBlendSeconds: FOUND 0x11273723c
+symbol SGAutoMixPlayerAvailable: FOUND 0x11273829c
+symbol SGAutoMixApplyCurrentPlayback: FOUND 0x112738340
+symbol SGAutoMixPlayerStateChanged: FOUND 0x1127391a8
+symbol SGAutoMixSettingsChanged: FOUND 0x112739544
+symbol SGAutoMixStatus: FOUND 0x112739590
+symbol SGAutoMixLastTransition: FOUND 0x1127395b8
+symbol SGAutoMixHasTransition: FOUND 0x112737564
+symbol SGAutoMixConfiguration: FOUND 0x112737a2c
 defaults[spotifyglass.automix]=<unset>
 defaults[spotifyglass.automix.savedPreferences]=<unset>
 defaults[spotifyglass.automix.style]=<unset>
@@ -23,28 +23,35 @@ defaults[audioCrossfade]=<unset>
 defaults[audioCrossfadeTime]=<unset>
 audioSession category=AVAudioSessionCategorySoloAmbient mode=AVAudioSessionModeDefault sampleRate=48000.0 outputLatency=0.0154
 audioOutput=Speaker type=Speaker
-notification=UIApplicationDidBecomeActiveNotification object=<MusicApp_ContainerWiring.SpotifyUIApplication: 0x11353e2a0> userInfo={
+notification=UIApplicationDidBecomeActiveNotification object=<MusicApp_ContainerWiring.SpotifyUIApplication: 0x113283a30> userInfo={
 }
-audio-tap classes factory=0x111ea3d38 tap=0x111ea3ce8 multiTap=0x111de2478
-audio-tap hook installed class=BMAudioTapFactory selector=createAudioTapWithPlayerItem:completion: original=0x10bbfcd90 replacement=0x113177404
-audio-tap hook installed class=BMAudioTap selector=initWithPlayerItem:appStateObservable:delegate: original=0x10bfeb3d4 replacement=0x113177600
-audio-tap hook installed class=BMAudioTap selector=isEnabled original=0x109b3a8ac replacement=0x1131778c0
-audio-tap hook installed class=BMAudioTap selector=stopProcessing original=0x10b7120a8 replacement=0x113177988
-audio-tap hook installed class=MultiPlayer_PlayerImpl.MultiPlayerAudioTap selector=audioTapDidEmitOutput: original=0x10b76ef4c replacement=0x113177a28
+audio-tap classes factory=0x11047fd38 tap=0x11047fce8 multiTap=0x1103be478
+audio-tap hook installed class=BMAudioTapFactory selector=createAudioTapWithPlayerItem:completion: original=0x10a1d8d90 replacement=0x111873508
+audio-tap hook installed class=BMAudioTapFactory selector=initWithAudioTapDelegate:appStateObservable: original=0x1046cbee8 replacement=0x111873704
+audio-tap hook installed class=BMAudioTap selector=audioTap original=0x10a458db8 replacement=0x1118738a4
+audio-tap upstream classes betamax=0x11047fe28 playerSource=0x110480328
+audio-tap hook installed class=BMBetamaxPlayerImpl selector=enableAudioTap: original=0x103ff2b04 replacement=0x111873964
+audio-tap hook installed class=BMPlayerSource selector=enableAudioTap: original=0x106505c00 replacement=0x111873a24
+audio-tap hook installed class=BMPlayerSource selector=setShouldEnableAudioTap: original=0x109d36ea4 replacement=0x111873ae4
+audio-tap hook installed class=BMPlayerSource selector=shouldEnableAudioTap original=0x103338c30 replacement=0x111873ba4
+audio-tap hook installed class=BMAudioTap selector=initWithPlayerItem:appStateObservable:delegate: original=0x10a5c73d4 replacement=0x111873c6c
+audio-tap hook installed class=BMAudioTap selector=isEnabled original=0x1081168ac replacement=0x111873f2c
+audio-tap hook installed class=BMAudioTap selector=stopProcessing original=0x109cee0a8 replacement=0x111873ff4
+audio-tap hook installed class=MultiPlayer_PlayerImpl.MultiPlayerAudioTap selector=audioTapDidEmitOutput: original=0x109d4af4c replacement=0x111874094
 --- snapshot: 3 seconds after launch ---
 bundle=com.s.z version=9.1.90 build=919002269
-symbol SGAutoMixSupportedVersion: FOUND 0x113f8f1ac
-symbol SGAutoMixEnabled: FOUND 0x113f8f204
-symbol SGAutoMixUsesBeatMatching: FOUND 0x113f8f214
-symbol SGAutoMixBlendSeconds: FOUND 0x113f8f23c
-symbol SGAutoMixPlayerAvailable: FOUND 0x113f9029c
-symbol SGAutoMixApplyCurrentPlayback: FOUND 0x113f90340
-symbol SGAutoMixPlayerStateChanged: FOUND 0x113f911a8
-symbol SGAutoMixSettingsChanged: FOUND 0x113f91544
-symbol SGAutoMixStatus: FOUND 0x113f91590
-symbol SGAutoMixLastTransition: FOUND 0x113f915b8
-symbol SGAutoMixHasTransition: FOUND 0x113f8f564
-symbol SGAutoMixConfiguration: FOUND 0x113f8fa2c
+symbol SGAutoMixSupportedVersion: FOUND 0x1127371ac
+symbol SGAutoMixEnabled: FOUND 0x112737204
+symbol SGAutoMixUsesBeatMatching: FOUND 0x112737214
+symbol SGAutoMixBlendSeconds: FOUND 0x11273723c
+symbol SGAutoMixPlayerAvailable: FOUND 0x11273829c
+symbol SGAutoMixApplyCurrentPlayback: FOUND 0x112738340
+symbol SGAutoMixPlayerStateChanged: FOUND 0x1127391a8
+symbol SGAutoMixSettingsChanged: FOUND 0x112739544
+symbol SGAutoMixStatus: FOUND 0x112739590
+symbol SGAutoMixLastTransition: FOUND 0x1127395b8
+symbol SGAutoMixHasTransition: FOUND 0x112737564
+symbol SGAutoMixConfiguration: FOUND 0x112737a2c
 defaults[spotifyglass.automix]=<unset>
 defaults[spotifyglass.automix.savedPreferences]=<unset>
 defaults[spotifyglass.automix.style]=<unset>
@@ -54,22 +61,24 @@ defaults[audioCrossfade]=<unset>
 defaults[audioCrossfadeTime]=<unset>
 audioSession category=AVAudioSessionCategorySoloAmbient mode=AVAudioSessionModeDefault sampleRate=48000.0 outputLatency=0.0154
 audioOutput=Speaker type=Speaker
-notification=UIApplicationDidBecomeActiveNotification object=<MusicApp_ContainerWiring.SpotifyUIApplication: 0x11353e2a0> userInfo={
+notification=UIApplicationDidBecomeActiveNotification object=<MusicApp_ContainerWiring.SpotifyUIApplication: 0x113283a30> userInfo={
+}
+notification=UIApplicationDidBecomeActiveNotification object=<MusicApp_ContainerWiring.SpotifyUIApplication: 0x113283a30> userInfo={
 }
 --- snapshot: 30 seconds after launch ---
 bundle=com.s.z version=9.1.90 build=919002269
-symbol SGAutoMixSupportedVersion: FOUND 0x113f8f1ac
-symbol SGAutoMixEnabled: FOUND 0x113f8f204
-symbol SGAutoMixUsesBeatMatching: FOUND 0x113f8f214
-symbol SGAutoMixBlendSeconds: FOUND 0x113f8f23c
-symbol SGAutoMixPlayerAvailable: FOUND 0x113f9029c
-symbol SGAutoMixApplyCurrentPlayback: FOUND 0x113f90340
-symbol SGAutoMixPlayerStateChanged: FOUND 0x113f911a8
-symbol SGAutoMixSettingsChanged: FOUND 0x113f91544
-symbol SGAutoMixStatus: FOUND 0x113f91590
-symbol SGAutoMixLastTransition: FOUND 0x113f915b8
-symbol SGAutoMixHasTransition: FOUND 0x113f8f564
-symbol SGAutoMixConfiguration: FOUND 0x113f8fa2c
+symbol SGAutoMixSupportedVersion: FOUND 0x1127371ac
+symbol SGAutoMixEnabled: FOUND 0x112737204
+symbol SGAutoMixUsesBeatMatching: FOUND 0x112737214
+symbol SGAutoMixBlendSeconds: FOUND 0x11273723c
+symbol SGAutoMixPlayerAvailable: FOUND 0x11273829c
+symbol SGAutoMixApplyCurrentPlayback: FOUND 0x112738340
+symbol SGAutoMixPlayerStateChanged: FOUND 0x1127391a8
+symbol SGAutoMixSettingsChanged: FOUND 0x112739544
+symbol SGAutoMixStatus: FOUND 0x112739590
+symbol SGAutoMixLastTransition: FOUND 0x1127395b8
+symbol SGAutoMixHasTransition: FOUND 0x112737564
+symbol SGAutoMixConfiguration: FOUND 0x112737a2c
 defaults[spotifyglass.automix]=<unset>
 defaults[spotifyglass.automix.savedPreferences]=<unset>
 defaults[spotifyglass.automix.style]=<unset>
@@ -79,3 +88,9 @@ defaults[audioCrossfade]=<unset>
 defaults[audioCrossfadeTime]=<unset>
 audioSession category=AVAudioSessionCategoryPlayback mode=AVAudioSessionModeDefault sampleRate=48000.0 outputLatency=0.0154
 audioOutput=Speaker type=Speaker
+notification=UIApplicationDidBecomeActiveNotification object=<MusicApp_ContainerWiring.SpotifyUIApplication: 0x113283a30> userInfo={
+}
+notification=UIApplicationDidBecomeActiveNotification object=<MusicApp_ContainerWiring.SpotifyUIApplication: 0x113283a30> userInfo={
+}
+notification=UIApplicationDidBecomeActiveNotification object=<MusicApp_ContainerWiring.SpotifyUIApplication: 0x113283a30> userInfo={
+}
