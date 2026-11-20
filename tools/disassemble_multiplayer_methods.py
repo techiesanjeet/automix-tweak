@@ -145,6 +145,7 @@ for label, binary in binaries:
                 second_level.add((callee, target, parent))
     # Trace one more bounded layer from those callees. This is needed when a
     # callback helper delegates field decoding/conversion to small leaf routines.
+    # callback helper delegates field decoding/conversion to small leaf routines.
     third_level = set()
     for callee, caller, parent in sorted(second_level):
         nearest = min(rows, key=lambda item: abs(item[1] - callee))
