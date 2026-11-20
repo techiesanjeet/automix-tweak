@@ -211,10 +211,10 @@ static id AMHookTapFactoryInit(id self, SEL cmd, id delegate, id appState) {
     return result;
 }
 
-static id AMHookTapAudioTapGetter(id self, SEL cmd) {
-    id result = ((id (*)(id, SEL))gOrigTapAudioTapGetter)(self, cmd);
-    AMLog(@"BMAudioTap audioTap getter self=%p result=%p class=%@", self, result,
-          result ? NSStringFromClass([result class]) : @"<nil>");
+static void *AMHookTapAudioTapGetter(id self, SEL cmd) {
+    // This getter returns an opaque MTAudioProcessingTap pointer, not an Obj-C object.
+    void *result = ((void *(*)(id, SEL))gOrigTapAudioTapGetter)(self, cmd);
+    AMLog(@"BMAudioTap audioTap getter self=%p opaqueTap=%p", self, result);
     return result;
 }
 
