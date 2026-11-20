@@ -92,33 +92,28 @@ if not candidate_imps:
     print("[objc] no IMPs found; wrote explicit limitation report", flush=True)
     raise SystemExit(0)
 
-print("[objc] disassembling executable text", flush=True)
-assembly = run(["otool", "-tvV", str(binary)], timeout=1200)
-if not assembly.strip():
-    raise SystemExit("otool -tvV returned empty assembly.")
-asm_lines = assembly.splitlines()
-rows = []
-for i, line in enumerate(asm_lines):
-    m = re.match(r"^\s*([0-9a-fA-F]{8,16})\s+(.+)$", line)
-    if m:
-        rows.append((i, int(m.group(1), 16)))
-if not rows:
-    raise SystemExit("Could not parse address-bearing instruction rows.")
-
+print("[objc] disassembling only target IMP windows (avoids whole-binary otool dump)", flush=True)
+# A full `otool -tvV` dump of Spotify is extremely slow (the previous run
+# spent >22 minutes here and was cancelled). Use Apple's LLVM objdump on
+# small address windows around each IMP instead.
+objdump = ["xcrun", "llvm-objdump", "--macho", "--disassemble"]
 sections = []
-for imp in sorted(candidate_imps):
-    nearest = min(rows, key=lambda item: abs(item[1] - imp))
-    row_idx, found = nearest
-    distance = abs(found - imp)
-    if distance > 32:
-        sections.append(f"IMP 0x{imp:x}: no nearby __text instruction (nearest 0x{found:x}, delta {distance})")
-        continue
-    start, stop = max(0, row_idx - 8), min(len(asm_lines), row_idx + 100)
-    sections.append(
-        f"===== Objective-C IMP 0x{imp:x}; nearest instruction 0x{found:x}; delta {distance} =====\n"
-        + "\n".join(asm_lines[start:stop])
-    )
+for n, imp in enumerate(sorted(candidate_imps), 1):
+    start_addr = max(0, imp - 32)
+    stop_addr = imp + 384
+    cmd = objdump + [f"--start-address=0x{start_addr:x}",
+                     f"--stop-address=0x{stop_addr:x}", str(binary)]
+    try:
+        chunk = run(cmd, timeout=30)
+    except (subprocess.TimeoutExpired, FileNotFoundError) as exc:
+        raise SystemExit(f"Targeted llvm-objdump failed at IMP 0x{imp:x}: {exc}")
+    if not chunk.strip() or "error:" in chunk.lower():
+        sections.append(f"===== IMP 0x{imp:x}: disassembly unavailable =====\\n{chunk[:2000]}")
+    else:
+        sections.append(f"===== Objective-C IMP 0x{imp:x} (window 0x{start_addr:x}-0x{stop_addr:x}) =====\\n{chunk}")
+    if n % 25 == 0:
+        print(f"[objc] disassembled {n}/{len(candidate_imps)} IMP windows", flush=True)
 
 (out / "spotify-objc-imp-disassembly.txt").write_text(
-    "\n\n".join(sections)[:3_000_000], encoding="utf-8")
-print(f"[objc] wrote {len(sections)} IMP disassembly reports", flush=True)
+    "\\n\\n".join(sections)[:3_000_000], encoding="utf-8")
+print(f"[objc] wrote {len(sections)} targeted IMP windows", flush=True)
