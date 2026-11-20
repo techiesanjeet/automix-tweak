@@ -235,7 +235,6 @@ static void AMDiagnosticsInit(void) {
         AMObserveNotification(@"SGPlayerTransitionEndedNotification");
         AMObserveNotification(@"UIApplicationDidBecomeActiveNotification");
         AMCollectSnapshot(@"dylib load");
-        AMInstallAudioTapHooks();
 
         dispatch_async(dispatch_get_main_queue(), ^{
             dispatch_after(dispatch_time(DISPATCH_TIME_NOW, 3 * NSEC_PER_SEC), dispatch_get_main_queue(), ^{
