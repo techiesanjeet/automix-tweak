@@ -145,6 +145,13 @@ typedef struct {
 } AMBMAudioTapOutput;
 
 static IMP gOrigTapFactoryCreate;
+static IMP gOrigTapFactoryInit;
+static IMP gOrigTapAudioTapGetter;
+static IMP gOrigBetamaxEnableAudioTap;
+static IMP gOrigPlayerSourceEnableAudioTap;
+static IMP gOrigPlayerSourceSetShouldEnableAudioTap;
+static IMP gOrigPlayerSourceShouldEnableAudioTap;
+
 static IMP gOrigTapInit;
 static IMP gOrigTapIsEnabled;
 static IMP gOrigTapStop;
@@ -195,6 +202,43 @@ static void AMHookMultiTapOutput(id self, SEL cmd, const AMBMAudioTapOutput *out
     ((void (*)(id, SEL, const AMBMAudioTapOutput *))gOrigMultiTapOutput)(self, cmd, output);
 }
 
+// Trace the upstream opt-in gate. These selectors and scalar BOOL ABIs were
+// confirmed from Taurus' Objective-C method encodings in the matching IPA.
+static id AMHookTapFactoryInit(id self, SEL cmd, id delegate, id appState) {
+    AMLog(@"BMAudioTapFactory init called factory=%p delegate=%p appState=%p", self, delegate, appState);
+    id result = ((id (*)(id, SEL, id, id))gOrigTapFactoryInit)(self, cmd, delegate, appState);
+    AMLog(@"BMAudioTapFactory init returned self=%p result=%p", self, result);
+    return result;
+}
+
+static id AMHookTapAudioTapGetter(id self, SEL cmd) {
+    id result = ((id (*)(id, SEL))gOrigTapAudioTapGetter)(self, cmd);
+    AMLog(@"BMAudioTap audioTap getter self=%p result=%p class=%@", self, result,
+          result ? NSStringFromClass([result class]) : @"<nil>");
+    return result;
+}
+
+static void AMHookBetamaxEnableAudioTap(id self, SEL cmd, BOOL enabled) {
+    AMLog(@"BMBetamaxPlayerImpl enableAudioTap self=%p enabled=%d", self, (int)enabled);
+    ((void (*)(id, SEL, BOOL))gOrigBetamaxEnableAudioTap)(self, cmd, enabled);
+}
+
+static void AMHookPlayerSourceEnableAudioTap(id self, SEL cmd, BOOL enabled) {
+    AMLog(@"BMPlayerSource enableAudioTap self=%p enabled=%d", self, (int)enabled);
+    ((void (*)(id, SEL, BOOL))gOrigPlayerSourceEnableAudioTap)(self, cmd, enabled);
+}
+
+static void AMHookPlayerSourceSetShouldEnableAudioTap(id self, SEL cmd, BOOL enabled) {
+    AMLog(@"BMPlayerSource setShouldEnableAudioTap self=%p enabled=%d", self, (int)enabled);
+    ((void (*)(id, SEL, BOOL))gOrigPlayerSourceSetShouldEnableAudioTap)(self, cmd, enabled);
+}
+
+static BOOL AMHookPlayerSourceShouldEnableAudioTap(id self, SEL cmd) {
+    BOOL enabled = ((BOOL (*)(id, SEL))gOrigPlayerSourceShouldEnableAudioTap)(self, cmd);
+    AMLog(@"BMPlayerSource shouldEnableAudioTap self=%p result=%d", self, (int)enabled);
+    return enabled;
+}
+
 static BOOL AMHookInstanceMethod(Class cls, SEL selector, IMP replacement, IMP *original) {
     if (!cls) return NO;
     Method method = class_getInstanceMethod(cls, selector);
@@ -216,6 +260,22 @@ static void AMInstallAudioTapHooks(void) {
 
     AMHookInstanceMethod(factory, @selector(createAudioTapWithPlayerItem:completion:),
                          (IMP)AMHookTapFactoryCreate, &gOrigTapFactoryCreate);
+    AMHookInstanceMethod(factory, @selector(initWithAudioTapDelegate:appStateObservable:),
+                         (IMP)AMHookTapFactoryInit, &gOrigTapFactoryInit);
+    AMHookInstanceMethod(tap, @selector(audioTap),
+                         (IMP)AMHookTapAudioTapGetter, &gOrigTapAudioTapGetter);
+
+    Class betamax = objc_getClass("BMBetamaxPlayerImpl");
+    Class playerSource = objc_getClass("BMPlayerSource");
+    AMLog(@"audio-tap upstream classes betamax=%p playerSource=%p", betamax, playerSource);
+    AMHookInstanceMethod(betamax, @selector(enableAudioTap:),
+                         (IMP)AMHookBetamaxEnableAudioTap, &gOrigBetamaxEnableAudioTap);
+    AMHookInstanceMethod(playerSource, @selector(enableAudioTap:),
+                         (IMP)AMHookPlayerSourceEnableAudioTap, &gOrigPlayerSourceEnableAudioTap);
+    AMHookInstanceMethod(playerSource, @selector(setShouldEnableAudioTap:),
+                         (IMP)AMHookPlayerSourceSetShouldEnableAudioTap, &gOrigPlayerSourceSetShouldEnableAudioTap);
+    AMHookInstanceMethod(playerSource, @selector(shouldEnableAudioTap),
+                         (IMP)AMHookPlayerSourceShouldEnableAudioTap, &gOrigPlayerSourceShouldEnableAudioTap);
     AMHookInstanceMethod(tap, @selector(initWithPlayerItem:appStateObservable:delegate:),
                          (IMP)AMHookTapInit, &gOrigTapInit);
     AMHookInstanceMethod(tap, @selector(isEnabled), (IMP)AMHookTapIsEnabled, &gOrigTapIsEnabled);
