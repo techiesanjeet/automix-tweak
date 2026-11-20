@@ -127,6 +127,103 @@ static void AMObserveNotification(NSString *name) {
     if (token) [gObservers addObject:token];
 }
 
+
+// Passive probes for Taurus' BMAudioTap route. We only observe lifecycle and
+// buffer descriptors; we never retain, modify, or replace the host audio data.
+#include <stdatomic.h>
+#include <stdint.h>
+
+typedef struct {
+    float *unusedBuffer;
+    float *bufferA;
+    uint64_t framesA;
+    float *bufferB;
+    uint64_t framesB;
+    float *bufferC;
+    uint64_t framesC;
+    uint64_t trailingValue;
+} AMBMAudioTapOutput;
+
+static IMP gOrigTapFactoryCreate;
+static IMP gOrigTapInit;
+static IMP gOrigTapIsEnabled;
+static IMP gOrigTapStop;
+static IMP gOrigMultiTapOutput;
+static atomic_uint gTapOutputEvents = 0;
+
+static void AMHookTapFactoryCreate(id self, SEL cmd, id playerItem, id completion) {
+    AMLog(@"BMAudioTapFactory createAudioTapWithPlayerItem called factory=%p item=%p itemClass=%@ completion=%p",
+          self, playerItem, playerItem ? NSStringFromClass([playerItem class]) : @"<nil>", completion);
+    ((void (*)(id, SEL, id, id))gOrigTapFactoryCreate)(self, cmd, playerItem, completion);
+}
+
+static id AMHookTapInit(id self, SEL cmd, id playerItem, id appState, id delegate) {
+    AMLog(@"BMAudioTap init entered self=%p item=%p itemClass=%@ appState=%p delegate=%p",
+          self, playerItem, playerItem ? NSStringFromClass([playerItem class]) : @"<nil>", appState, delegate);
+    id result = ((id (*)(id, SEL, id, id, id))gOrigTapInit)(self, cmd, playerItem, appState, delegate);
+    AMLog(@"BMAudioTap init returned self=%p result=%p", self, result);
+    return result;
+}
+
+static BOOL AMHookTapIsEnabled(id self, SEL cmd) {
+    BOOL enabled = ((BOOL (*)(id, SEL))gOrigTapIsEnabled)(self, cmd);
+    AMLog(@"BMAudioTap isEnabled self=%p result=%d", self, (int)enabled);
+    return enabled;
+}
+
+static void AMHookTapStop(id self, SEL cmd) {
+    AMLog(@"BMAudioTap stopProcessing self=%p", self);
+    ((void (*)(id, SEL))gOrigTapStop)(self, cmd);
+}
+
+static void AMHookMultiTapOutput(id self, SEL cmd, const AMBMAudioTapOutput *output) {
+    unsigned event = atomic_fetch_add_explicit(&gTapOutputEvents, 1, memory_order_relaxed) + 1;
+    if (event <= 12) {
+        // The three counted Float32 arrays are described by pointer/count pairs.
+        // Do not read sample memory here: callback timing and ownership are private.
+        uintptr_t a = output ? (uintptr_t)output->bufferA : 0;
+        uintptr_t b = output ? (uintptr_t)output->bufferB : 0;
+        uintptr_t c = output ? (uintptr_t)output->bufferC : 0;
+        uint64_t na = output ? output->framesA : 0;
+        uint64_t nb = output ? output->framesB : 0;
+        uint64_t nc = output ? output->framesC : 0;
+        dispatch_async(dispatch_get_global_queue(QOS_CLASS_UTILITY, 0), ^{
+            AMLog(@"MultiPlayerAudioTap output #%u self=%p descriptor=%p A=%p/%llu B=%p/%llu C=%p/%llu",
+                  event, self, output, (void *)a, na, (void *)b, nb, (void *)c, nc);
+        });
+    }
+    ((void (*)(id, SEL, const AMBMAudioTapOutput *))gOrigMultiTapOutput)(self, cmd, output);
+}
+
+static BOOL AMHookInstanceMethod(Class cls, SEL selector, IMP replacement, IMP *original) {
+    if (!cls) return NO;
+    Method method = class_getInstanceMethod(cls, selector);
+    if (!method) {
+        AMLog(@"audio-tap hook unavailable class=%@ selector=%@", NSStringFromClass(cls), NSStringFromSelector(selector));
+        return NO;
+    }
+    *original = method_setImplementation(method, replacement);
+    AMLog(@"audio-tap hook installed class=%@ selector=%@ original=%p replacement=%p",
+          NSStringFromClass(cls), NSStringFromSelector(selector), *original, replacement);
+    return *original != NULL;
+}
+
+static void AMInstallAudioTapHooks(void) {
+    Class factory = objc_getClass("BMAudioTapFactory");
+    Class tap = objc_getClass("BMAudioTap");
+    Class multiTap = objc_getClass("_TtC22MultiPlayer_PlayerImpl19MultiPlayerAudioTap");
+    AMLog(@"audio-tap classes factory=%p tap=%p multiTap=%p", factory, tap, multiTap);
+
+    AMHookInstanceMethod(factory, @selector(createAudioTapWithPlayerItem:completion:),
+                         (IMP)AMHookTapFactoryCreate, &gOrigTapFactoryCreate);
+    AMHookInstanceMethod(tap, @selector(initWithPlayerItem:appStateObservable:delegate:),
+                         (IMP)AMHookTapInit, &gOrigTapInit);
+    AMHookInstanceMethod(tap, @selector(isEnabled), (IMP)AMHookTapIsEnabled, &gOrigTapIsEnabled);
+    AMHookInstanceMethod(tap, @selector(stopProcessing), (IMP)AMHookTapStop, &gOrigTapStop);
+    AMHookInstanceMethod(multiTap, @selector(audioTapDidEmitOutput:),
+                         (IMP)AMHookMultiTapOutput, &gOrigMultiTapOutput);
+}
+
 __attribute__((constructor))
 static void AMDiagnosticsInit(void) {
     @autoreleasepool {
@@ -138,10 +235,12 @@ static void AMDiagnosticsInit(void) {
         AMObserveNotification(@"SGPlayerTransitionEndedNotification");
         AMObserveNotification(@"UIApplicationDidBecomeActiveNotification");
         AMCollectSnapshot(@"dylib load");
+        AMInstallAudioTapHooks();
 
         dispatch_async(dispatch_get_main_queue(), ^{
             dispatch_after(dispatch_time(DISPATCH_TIME_NOW, 3 * NSEC_PER_SEC), dispatch_get_main_queue(), ^{
                 AMInstallButton();
+                AMInstallAudioTapHooks();
                 AMCollectSnapshot(@"3 seconds after launch");
             });
             dispatch_after(dispatch_time(DISPATCH_TIME_NOW, 30 * NSEC_PER_SEC), dispatch_get_main_queue(), ^{
