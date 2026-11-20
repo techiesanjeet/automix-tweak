@@ -152,7 +152,7 @@ for label, binary in binaries:
         if abs(found - callee) > 4:
             continue
         for asm_line in lines[row_idx:min(len(lines), row_idx + 180)]:
-            bm = re.search(r"\\bbl\\s+(0x[0-9a-fA-F]+)", asm_line)
+            bm = re.search(r"\bbl\s+(0x[0-9a-fA-F]+)", asm_line)
             if not bm:
                 continue
             leaf = int(bm.group(1), 16)
@@ -167,9 +167,9 @@ for label, binary in binaries:
             continue
         start, stop = max(0, row_idx - 8), min(len(lines), row_idx + 120)
         all_sections.append(
-            f"===== {label}: third-level leaf of 0x{caller:x} for {parent} =====\\n"
-            f"image={binary.name} target=0x{leaf:x}\\n"
-            + "\\n".join(lines[start:stop]))
+            f"===== {label}: third-level leaf of 0x{caller:x} for {parent} =====\n"
+            f"image={binary.name} target=0x{leaf:x}\n"
+            + "\n".join(lines[start:stop]))
 
     for callee, caller, parent in sorted(second_level):
         nearest = min(rows, key=lambda item: abs(item[1] - callee))
