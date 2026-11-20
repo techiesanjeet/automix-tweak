@@ -23,7 +23,10 @@ FOCUS = re.compile(
     r"InternalAudioCoordinator|MixingTransitionPlayerImpl|GenericPlayerPool|"
     r"SinglePlayerImpl|PlayerGroupImpl|MultiPlayerSessionImpl|"
     r"MultiPlayerAudioTap|BMAudioTap|audioTapDidEmitOutput|"
-    r"createAudioTapWithPlayerItem|enableAudioTap",
+    r"createAudioTapWithPlayerItem|enableAudioTap|"
+    r"BMPlayerSource.*(?:setShouldEnableAudioTap|shouldEnableAudioTap|"
+    r"audioTapFactory|audioTap|currentPlayerItemChanged|initWithPlayerConfiguration)|"
+    r"BMBetamaxPlayerImpl.*initWithPlaybackSessionFactory",
     re.I,
 )
 EXCLUDE = ("metadata", "type metadata", "nominal type descriptor",
