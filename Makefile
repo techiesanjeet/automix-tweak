@@ -3,7 +3,7 @@ ARCHS = arm64
 
 LIBRARY_NAME = AutoMixEngine
 
-AutoMixEngine_FILES = AutoMixEngine.mm fishhook.c
+AutoMixEngine_FILES = AutoMixEngine.mm AutoMixDiagnostics.mm fishhook.c
 AutoMixEngine_FRAMEWORKS = UIKit AudioToolbox Foundation CoreAudio
 AutoMixEngine_CFLAGS = -fobjc-arc
 AutoMixEngine_CXXFLAGS = -std=c++17
