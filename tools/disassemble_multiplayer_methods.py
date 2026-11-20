@@ -143,6 +143,34 @@ for label, binary in binaries:
                 continue
             if any(callee == ins_addr for _, ins_addr in rows):
                 second_level.add((callee, target, parent))
+    # Trace one more bounded layer from those callees. This is needed when a
+    # callback helper delegates field decoding/conversion to small leaf routines.
+    third_level = set()
+    for callee, caller, parent in sorted(second_level):
+        nearest = min(rows, key=lambda item: abs(item[1] - callee))
+        row_idx, found = nearest
+        if abs(found - callee) > 4:
+            continue
+        for asm_line in lines[row_idx:min(len(lines), row_idx + 180)]:
+            bm = re.search(r"\\bbl\\s+(0x[0-9a-fA-F]+)", asm_line)
+            if not bm:
+                continue
+            leaf = int(bm.group(1), 16)
+            if leaf < 0x100000000 or leaf >= 0x109b00000:
+                continue
+            if any(leaf == ins_addr for _, ins_addr in rows):
+                third_level.add((leaf, callee, parent))
+    for leaf, caller, parent in sorted(third_level):
+        nearest = min(rows, key=lambda item: abs(item[1] - leaf))
+        row_idx, found = nearest
+        if abs(found - leaf) > 4:
+            continue
+        start, stop = max(0, row_idx - 8), min(len(lines), row_idx + 120)
+        all_sections.append(
+            f"===== {label}: third-level leaf of 0x{caller:x} for {parent} =====\\n"
+            f"image={binary.name} target=0x{leaf:x}\\n"
+            + "\\n".join(lines[start:stop]))
+
     for callee, caller, parent in sorted(second_level):
         nearest = min(rows, key=lambda item: abs(item[1] - callee))
         row_idx, found = nearest
@@ -152,7 +180,7 @@ for label, binary in binaries:
         all_sections.append(
             f"===== {label}: second-level callee of 0x{caller:x} for {parent} =====\n"
             f"image={binary.name} target=0x{callee:x}\n"
-            + "\\n".join(lines[start:stop]))
+            + "\n".join(lines[start:stop]))
 
     for address, name, readable in matches:
         # Binary search would be faster, but this list is modest after filtering.
