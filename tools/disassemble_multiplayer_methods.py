@@ -23,7 +23,7 @@ FOCUS = re.compile(
     r"InternalAudioCoordinator|MixingTransitionPlayerImpl|GenericPlayerPool|"
     r"SinglePlayerImpl|PlayerGroupImpl|MultiPlayerSessionImpl|"
     r"MultiPlayerAudioTap|BMAudioTap|audioTapDidEmitOutput|"
-    r"createAudioTapWithPlayerItem|enableAudioTap|"
+    r"createAudioTapWithPlayerItem|enableAudioTap|updateAudioTapForPlayerItem|"
     r"BMPlayerSource.*(?:setShouldEnableAudioTap|shouldEnableAudioTap|"
     r"audioTapFactory|audioTap|currentPlayerItemChanged|initWithPlayerConfiguration)|"
     r"BMBetamaxPlayerImpl.*initWithPlaybackSessionFactory",
@@ -51,7 +51,6 @@ for label, binary in binaries:
             raw.append((int(parts[0], 16), " ".join(parts[2:])))
 
     matches = []
-    # Preserve Objective-C method symbols verbatim; demangle Swift symbols in batch.
     swift = [(a, n) for a, n in raw if n.startswith(("$s", "_$s"))]
     readable_by_name = {}
     if swift:
@@ -59,7 +58,6 @@ for label, binary in binaries:
         if not demangler:
             errors.append(f"{label}: swift-demangle unavailable")
         else:
-            dm = run([demangler, "--compact"], timeout=900) if False else None
             proc = subprocess.run([demangler, "--compact"],
                 input="\n".join(n for _, n in swift), stdout=subprocess.PIPE,
                 stderr=subprocess.STDOUT, text=True, errors="replace", timeout=900)
@@ -94,8 +92,6 @@ for label, binary in binaries:
     if not rows:
         errors.append(f"{label}: no address-bearing instruction rows")
         continue
-    # Address rows are sorted once; binary search avoids repeated O(n) scans
-    # for every callback/helper target in very large stripped Mach-O images.
     rows.sort(key=lambda item: item[1])
     row_addresses = [item[1] for item in rows]
     def nearest_row(address):
@@ -104,118 +100,93 @@ for label, binary in binaries:
         return min(candidates, key=lambda item: abs(item[1] - address))
     seen = set()
 
-    # Trace direct helper calls made by MultiPlayerAudioTap callbacks in this
-    # same Mach-O image. A target is never resolved against the other image.
-    callback_symbols = [(a, n, r) for a, n, r in matches
-                        if "audioTapDidEmitOutput" in r]
+    # Follow direct callees from the audio-tap lifecycle, not only the output
+    # callback. This captures the enablement gate and asynchronous tap factory.
+    lifecycle_symbols = [(a, n, r) for a, n, r in matches
+        if re.search(r"audioTapDidEmitOutput|updateAudioTapForPlayerItem|"
+                     r"currentPlayerItemChanged|enableAudioTap|"
+                     r"createAudioTapWithPlayerItem", r, re.I)]
     helper_targets = set()
-    for address, name, readable in callback_symbols:
-        nearest = nearest_row(address)
-        row_idx, found = nearest
+    for address, name, readable in lifecycle_symbols:
+        row_idx, found = nearest_row(address)
         if abs(found - address) > 32:
             continue
-        # Inspect the callback's own instruction window and collect direct BLs.
-        for asm_line in lines[row_idx:min(len(lines), row_idx + 90)]:
+        for asm_line in lines[row_idx:min(len(lines), row_idx + 240)]:
             bm = re.search(r"\bbl\s+(0x[0-9a-fA-F]+)", asm_line)
             if bm:
                 target = int(bm.group(1), 16)
-                # Keep only in-image calls; external stubs are not helper code.
                 if any(target == ins_addr for _, ins_addr in rows):
                     helper_targets.add((target, readable))
     for target, parent in sorted(helper_targets):
-        nearest = nearest_row(target)
-        row_idx, found = nearest
+        row_idx, found = nearest_row(target)
         if abs(found - target) > 4:
             errors.append(f"{label}: helper target 0x{target:x} not aligned to instruction")
             continue
-        # Resolve the closest preceding symbol in this image, for context only.
         preceding = [(a, n, r) for a, n, r in matches if a <= target]
         owner = max(preceding, key=lambda item: item[0]) if preceding else None
         owner_text = f"{owner[2]} @0x{owner[0]:x}" if owner else "stripped/unnamed local helper"
-        start, stop = max(0, row_idx - 8), min(len(lines), row_idx + 180)
+        start, stop = max(0, row_idx - 8), min(len(lines), row_idx + 220)
         all_sections.append(
-            f"===== {label}: helper for {parent} =====\n"
+            f"===== {label}: direct callee of {parent} =====\n"
             f"image={binary.name} target=0x{target:x} owner={owner_text}\n"
             + "\n".join(lines[start:stop]))
-    # Trace one additional call layer from callback helpers. This is deliberately
-    # bounded: it disassembles direct in-image callees only, not a recursive graph.
+
+    # Two additional bounded levels reveal small private routines that perform
+    # gate checks, queue dispatch, and player-item validation.
     second_level = set()
     for target, parent in sorted(helper_targets):
-        nearest = nearest_row(target)
-        row_idx, found = nearest
+        row_idx, found = nearest_row(target)
         if abs(found - target) > 4:
             continue
-        for asm_line in lines[row_idx:min(len(lines), row_idx + 180)]:
+        for asm_line in lines[row_idx:min(len(lines), row_idx + 220)]:
             bm = re.search(r"\bbl\s+(0x[0-9a-fA-F]+)", asm_line)
             if not bm:
                 continue
             callee = int(bm.group(1), 16)
-            # Ignore runtime/stub targets; focus on private in-image routines.
-            if callee < 0x100000000 or callee >= 0x109b00000:
-                continue
-            if any(callee == ins_addr for _, ins_addr in rows):
+            if 0x100000000 <= callee < 0x109b00000 and any(callee == x for _, x in rows):
                 second_level.add((callee, target, parent))
-    # Trace one more bounded layer from those callees. This is needed when a
-    # callback helper delegates field decoding/conversion to small leaf routines.
-    # callback helper delegates field decoding/conversion to small leaf routines.
     third_level = set()
     for callee, caller, parent in sorted(second_level):
-        nearest = nearest_row(callee)
-        row_idx, found = nearest
+        row_idx, found = nearest_row(callee)
         if abs(found - callee) > 4:
             continue
-        for asm_line in lines[row_idx:min(len(lines), row_idx + 180)]:
+        for asm_line in lines[row_idx:min(len(lines), row_idx + 220)]:
             bm = re.search(r"\bbl\s+(0x[0-9a-fA-F]+)", asm_line)
             if not bm:
                 continue
             leaf = int(bm.group(1), 16)
-            if leaf < 0x100000000 or leaf >= 0x109b00000:
-                continue
-            if any(leaf == ins_addr for _, ins_addr in rows):
+            if 0x100000000 <= leaf < 0x109b00000 and any(leaf == x for _, x in rows):
                 third_level.add((leaf, callee, parent))
-    for leaf, caller, parent in sorted(third_level):
-        nearest = nearest_row(leaf)
-        row_idx, found = nearest
-        if abs(found - leaf) > 4:
-            continue
-        start, stop = max(0, row_idx - 8), min(len(lines), row_idx + 120)
-        all_sections.append(
-            f"===== {label}: third-level leaf of 0x{caller:x} for {parent} =====\n"
-            f"image={binary.name} target=0x{leaf:x}\n"
-            + "\n".join(lines[start:stop]))
+    for level, entries, span in ((2, second_level, 180), (3, third_level, 150)):
+        for target, caller, parent in sorted(entries):
+            row_idx, found = nearest_row(target)
+            if abs(found - target) > 4:
+                continue
+            start, stop = max(0, row_idx - 8), min(len(lines), row_idx + span)
+            all_sections.append(
+                f"===== {label}: level-{level} callee of 0x{caller:x} for {parent} =====\n"
+                f"image={binary.name} target=0x{target:x}\n"
+                + "\n".join(lines[start:stop]))
 
-    for callee, caller, parent in sorted(second_level):
-        nearest = nearest_row(callee)
-        row_idx, found = nearest
-        if abs(found - callee) > 4:
-            continue
-        start, stop = max(0, row_idx - 8), min(len(lines), row_idx + 140)
-        all_sections.append(
-            f"===== {label}: second-level callee of 0x{caller:x} for {parent} =====\n"
-            f"image={binary.name} target=0x{callee:x}\n"
-            + "\n".join(lines[start:stop]))
-
+    # Longer windows are required for Swift/ObjC methods with outlined blocks.
     for address, name, readable in matches:
-        # Binary search would be faster, but this list is modest after filtering.
-        nearest = nearest_row(address)
-        row_idx, found = nearest
-        distance = abs(found - address)
-        if distance > 32:
+        row_idx, found = nearest_row(address)
+        if abs(found - address) > 32:
             continue
-        start, stop = max(0, row_idx - 8), min(len(lines), row_idx + 121)
+        start, stop = max(0, row_idx - 8), min(len(lines), row_idx + 241)
         key = (start, stop)
         if key in seen:
             continue
         seen.add(key)
         all_sections.append(
             f"===== {label}: {readable} =====\n"
-            f"symbol=0x{address:x} matched=0x{found:x} distance={distance}\n"
+            f"symbol=0x{address:x} matched=0x{found:x} distance={abs(found-address)}\n"
             + "\n".join(lines[start:stop]))
 
 (out / "spotify-multiplayer-method-index.txt").write_text(
     "\n\n".join(all_indexes) + "\n", encoding="utf-8")
 (out / "spotify-multiplayer-method-disassembly.txt").write_text(
-    "\n\n".join(all_sections)[:8_000_000], encoding="utf-8")
+    "\n\n".join(all_sections)[:12_000_000], encoding="utf-8")
 if errors:
     (out / "spotify-multiplayer-methods-error.txt").write_text(
         "\n".join(errors) + "\n", encoding="utf-8")
