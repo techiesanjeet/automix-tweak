@@ -92,28 +92,27 @@ if not candidate_imps:
     print("[objc] no IMPs found; wrote explicit limitation report", flush=True)
     raise SystemExit(0)
 
-print("[objc] disassembling only target IMP windows (avoids whole-binary otool dump)", flush=True)
-# A full `otool -tvV` dump of Spotify is extremely slow (the previous run
-# spent >22 minutes here and was cancelled). Use Apple's LLVM objdump on
-# small address windows around each IMP instead.
-objdump = ["xcrun", "llvm-objdump", "--macho", "--disassemble"]
-sections = []
-for n, imp in enumerate(sorted(candidate_imps), 1):
-    start_addr = max(0, imp - 32)
-    stop_addr = imp + 384
-    cmd = objdump + [f"--start-address=0x{start_addr:x}",
-                     f"--stop-address=0x{stop_addr:x}", str(binary)]
-    try:
-        chunk = run(cmd, timeout=30)
-    except (subprocess.TimeoutExpired, FileNotFoundError) as exc:
-        raise SystemExit(f"Targeted llvm-objdump failed at IMP 0x{imp:x}: {exc}")
-    if not chunk.strip() or "error:" in chunk.lower():
-        sections.append(f"===== IMP 0x{imp:x}: disassembly unavailable =====\\n{chunk[:2000]}")
-    else:
-        sections.append(f"===== Objective-C IMP 0x{imp:x} (window 0x{start_addr:x}-0x{stop_addr:x}) =====\\n{chunk}")
-    if n % 25 == 0:
-        print(f"[objc] disassembled {n}/{len(candidate_imps)} IMP windows", flush=True)
-
+# Do not invoke a second disassembler here. The preceding
+# disassemble_multiplayer_methods.py step already disassembles the relevant
+# named methods from the symbol table. Running llvm-objdump separately for
+# every IMP repeatedly reparses the 138 MB Mach-O and times out even for
+# tiny address windows. Preserve the runtime IMP map for cross-referencing
+# with spotify-multiplayer-method-disassembly.txt instead.
+imp_rows = [
+    f"0x{imp:x}"
+    for imp in sorted(candidate_imps)
+]
+(out / "spotify-objc-imp-addresses.txt").write_text(
+    "\\n".join(imp_rows) + "\\n", encoding="utf-8")
+summary = [
+    "Objective-C IMP address inventory",
+    f"Unique IMP addresses: {len(candidate_imps)}",
+    "Disassembly is provided by spotify-multiplayer-method-disassembly.txt "
+    "for named symbols; this scanner intentionally avoids a duplicate "
+    "whole-binary or per-IMP disassembly pass.",
+    "",
+    *imp_rows,
+]
 (out / "spotify-objc-imp-disassembly.txt").write_text(
-    "\\n\\n".join(sections)[:3_000_000], encoding="utf-8")
-print(f"[objc] wrote {len(sections)} targeted IMP windows", flush=True)
+    "\\n".join(summary), encoding="utf-8")
+print(f"[objc] wrote {len(candidate_imps)} IMP addresses; using existing named-method disassembly", flush=True)
