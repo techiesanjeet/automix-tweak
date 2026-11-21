@@ -102,11 +102,15 @@ for label, binary in binaries:
             return ""
         # Preserve priority order instead of alphabetizing away critical methods.
         ordered = list(dict.fromkeys(names))
-        # llvm-objdump treats --disassemble-symbols as a repeatable option;
-        # a comma-joined value is one glob and can silently match nothing.
-        args = ["xcrun", "llvm-objdump", "--macho", "--disassemble"]
-        args.extend("--disassemble-symbols=" + name for name in ordered)
-        return run(args + [str(binary)], timeout=900)
+        # Apple's otool -p disassembles one named Mach-O symbol reliably.
+        # Run per symbol so one bad/missing name cannot suppress the others.
+        chunks = []
+        for name in ordered:
+            output = run(["xcrun", "otool", "-arch", "arm64", "-tvV",
+                          "-p", name, str(binary)], timeout=120)
+            if output.strip():
+                chunks.append(output)
+        return "\\n".join(chunks)
 
     first = disassemble_symbols(selected)
     if not first.strip():
