@@ -78,110 +78,65 @@ for label, binary in binaries:
     if not matches:
         continue
 
-    print(f"[methods] disassembling {label} __text", flush=True)
-    assembly = run(["otool", "-tvV", str(binary)], timeout=1800)
-    if not assembly.strip():
-        errors.append(f"{label}: otool returned empty assembly")
-        continue
-    lines = assembly.splitlines()
-    rows = []
-    for i, line in enumerate(lines):
-        m = re.match(r"^\s*([0-9a-fA-F]{8,16})\s+(.+)$", line)
-        if m:
-            rows.append((i, int(m.group(1), 16)))
-    if not rows:
-        errors.append(f"{label}: no address-bearing instruction rows")
-        continue
-    rows.sort(key=lambda item: item[1])
-    row_addresses = [item[1] for item in rows]
-    def nearest_row(address):
-        pos = bisect.bisect_left(row_addresses, address)
-        candidates = rows[max(0, pos - 1):min(len(rows), pos + 1)]
-        return min(candidates, key=lambda item: abs(item[1] - address))
-    seen = set()
-
-    # Follow direct callees from the audio-tap lifecycle, not only the output
-    # callback. This captures the enablement gate and asynchronous tap factory.
-    lifecycle_symbols = [(a, n, r) for a, n, r in matches
+    # Disassemble only matched symbols. Full `otool -tvV` output for
+    # Spotify is hundreds of MB and needlessly parses unrelated code.
+    symbol_by_address = {a: n for a, n in raw}
+    selected = {n for _, n, _ in matches}
+    lifecycle = [(a, n, r) for a, n, r in matches
         if re.search(r"audioTapDidEmitOutput|updateAudioTapForPlayerItem|"
                      r"currentPlayerItemChanged|enableAudioTap|"
                      r"createAudioTapWithPlayerItem", r, re.I)]
-    helper_targets = set()
-    for address, name, readable in lifecycle_symbols:
-        row_idx, found = nearest_row(address)
-        if abs(found - address) > 32:
-            continue
-        for asm_line in lines[row_idx:min(len(lines), row_idx + 240)]:
-            bm = re.search(r"\bbl\s+(0x[0-9a-fA-F]+)", asm_line)
+    selected.update(n for _, n, _ in lifecycle)
+
+    def disassemble_symbols(names):
+        if not names:
+            return ""
+        # llvm-objdump accepts a comma-separated symbol filter and emits only
+        # those functions, avoiding a whole-image text dump.
+        return run(["xcrun", "llvm-objdump", "--macho", "--disassemble",
+                    "--disassemble-symbols=" + ",".join(sorted(names)),
+                    str(binary)], timeout=900)
+
+    first = disassemble_symbols(selected)
+    if not first.strip():
+        errors.append(f"{label}: targeted llvm-objdump returned no method output")
+        continue
+    all_sections.append(f"===== {label}: targeted lifecycle and multiplayer methods =====\n{first}")
+
+    # Follow direct calls only when the destination has a real symbol. Batch
+    # helper symbols into one filtered invocation per call-graph level.
+    known_addresses = set(symbol_by_address)
+    frontier = set()
+    for line in first.splitlines():
+        bm = re.search(r"\bbl\s+(?:0x)?([0-9a-fA-F]{8,16})", line)
+        if bm:
+            address = int(bm.group(1), 16)
+            if address in known_addresses:
+                name = symbol_by_address[address]
+                if name not in selected:
+                    frontier.add(name)
+    for level in (2, 3):
+        frontier -= selected
+        if not frontier:
+            break
+        helper_output = disassemble_symbols(frontier)
+        if not helper_output.strip():
+            errors.append(f"{label}: no output for level-{level} helper symbols")
+            break
+        all_sections.append(
+            f"===== {label}: level-{level} named callees =====\n{helper_output}")
+        selected.update(frontier)
+        next_frontier = set()
+        for line in helper_output.splitlines():
+            bm = re.search(r"\bbl\s+(?:0x)?([0-9a-fA-F]{8,16})", line)
             if bm:
-                target = int(bm.group(1), 16)
-                if any(target == ins_addr for _, ins_addr in rows):
-                    helper_targets.add((target, readable))
-    for target, parent in sorted(helper_targets):
-        row_idx, found = nearest_row(target)
-        if abs(found - target) > 4:
-            errors.append(f"{label}: helper target 0x{target:x} not aligned to instruction")
-            continue
-        preceding = [(a, n, r) for a, n, r in matches if a <= target]
-        owner = max(preceding, key=lambda item: item[0]) if preceding else None
-        owner_text = f"{owner[2]} @0x{owner[0]:x}" if owner else "stripped/unnamed local helper"
-        start, stop = max(0, row_idx - 8), min(len(lines), row_idx + 220)
-        all_sections.append(
-            f"===== {label}: direct callee of {parent} =====\n"
-            f"image={binary.name} target=0x{target:x} owner={owner_text}\n"
-            + "\n".join(lines[start:stop]))
-
-    # Two additional bounded levels reveal small private routines that perform
-    # gate checks, queue dispatch, and player-item validation.
-    second_level = set()
-    for target, parent in sorted(helper_targets):
-        row_idx, found = nearest_row(target)
-        if abs(found - target) > 4:
-            continue
-        for asm_line in lines[row_idx:min(len(lines), row_idx + 220)]:
-            bm = re.search(r"\bbl\s+(0x[0-9a-fA-F]+)", asm_line)
-            if not bm:
-                continue
-            callee = int(bm.group(1), 16)
-            if 0x100000000 <= callee < 0x109b00000 and any(callee == x for _, x in rows):
-                second_level.add((callee, target, parent))
-    third_level = set()
-    for callee, caller, parent in sorted(second_level):
-        row_idx, found = nearest_row(callee)
-        if abs(found - callee) > 4:
-            continue
-        for asm_line in lines[row_idx:min(len(lines), row_idx + 220)]:
-            bm = re.search(r"\bbl\s+(0x[0-9a-fA-F]+)", asm_line)
-            if not bm:
-                continue
-            leaf = int(bm.group(1), 16)
-            if 0x100000000 <= leaf < 0x109b00000 and any(leaf == x for _, x in rows):
-                third_level.add((leaf, callee, parent))
-    for level, entries, span in ((2, second_level, 180), (3, third_level, 150)):
-        for target, caller, parent in sorted(entries):
-            row_idx, found = nearest_row(target)
-            if abs(found - target) > 4:
-                continue
-            start, stop = max(0, row_idx - 8), min(len(lines), row_idx + span)
-            all_sections.append(
-                f"===== {label}: level-{level} callee of 0x{caller:x} for {parent} =====\n"
-                f"image={binary.name} target=0x{target:x}\n"
-                + "\n".join(lines[start:stop]))
-
-    # Longer windows are required for Swift/ObjC methods with outlined blocks.
-    for address, name, readable in matches:
-        row_idx, found = nearest_row(address)
-        if abs(found - address) > 32:
-            continue
-        start, stop = max(0, row_idx - 8), min(len(lines), row_idx + 241)
-        key = (start, stop)
-        if key in seen:
-            continue
-        seen.add(key)
-        all_sections.append(
-            f"===== {label}: {readable} =====\n"
-            f"symbol=0x{address:x} matched=0x{found:x} distance={abs(found-address)}\n"
-            + "\n".join(lines[start:stop]))
+                address = int(bm.group(1), 16)
+                if address in known_addresses:
+                    name = symbol_by_address[address]
+                    if name not in selected:
+                        next_frontier.add(name)
+        frontier = next_frontier
+    print(f"[methods] {label}: emitted targeted methods and {len(selected)-len(matches)} named callees", flush=True)
 
 (out / "spotify-multiplayer-method-index.txt").write_text(
     "\n\n".join(all_indexes) + "\n", encoding="utf-8")
