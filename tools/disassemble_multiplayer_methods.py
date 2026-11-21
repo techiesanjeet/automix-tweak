@@ -102,13 +102,23 @@ for label, binary in binaries:
             return ""
         # Preserve priority order instead of alphabetizing away critical methods.
         ordered = list(dict.fromkeys(names))
-        return run(["xcrun", "llvm-objdump", "--macho", "--disassemble",
-                    "--disassemble-symbols=" + ",".join(ordered),
-                    str(binary)], timeout=900)
+        # llvm-objdump treats --disassemble-symbols as a repeatable option;
+        # a comma-joined value is one glob and can silently match nothing.
+        args = ["xcrun", "llvm-objdump", "--macho", "--disassemble"]
+        args.extend("--disassemble-symbols=" + name for name in ordered)
+        return run(args + [str(binary)], timeout=900)
 
     first = disassemble_symbols(selected)
     if not first.strip():
         errors.append(f"{label}: targeted llvm-objdump returned no method output")
+        continue
+    # Fail closed if requested method labels are absent. Do not mistake a
+    # full executable dump for a successful focused disassembly.
+    expected = [readable for _, name, readable in matches
+                if name in selected and any(
+                    re.search(pattern, readable, re.I) for pattern in priority_patterns)]
+    if not any(token in first for token in expected):
+        errors.append(f"{label}: llvm-objdump emitted none of the requested priority method labels")
         continue
     all_sections.append(f"===== {label}: priority audio-tap lifecycle methods =====\\n{first}")
 
@@ -117,7 +127,7 @@ for label, binary in binaries:
     selected_set = set(selected)
     frontier = []
     for line in first.splitlines():
-        bm = re.search(r"\\bbl\\s+(?:0x)?([0-9a-fA-F]{8,16})", line)
+        bm = re.search(r"\bbl\s+(?:0x)?([0-9a-fA-F]{8,16})", line)
         if bm:
             address = int(bm.group(1), 16)
             if address in known_addresses:
@@ -137,7 +147,7 @@ for label, binary in binaries:
         selected_set.update(frontier)
         next_frontier = []
         for line in helper_output.splitlines():
-            bm = re.search(r"\\bbl\\s+(?:0x)?([0-9a-fA-F]{8,16})", line)
+            bm = re.search(r"\bbl\s+(?:0x)?([0-9a-fA-F]{8,16})", line)
             if bm:
                 address = int(bm.group(1), 16)
                 if address in known_addresses:
