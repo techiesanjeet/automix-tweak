@@ -114,11 +114,12 @@ for label, binary in binaries:
         continue
     # Fail closed if requested method labels are absent. Do not mistake a
     # full executable dump for a successful focused disassembly.
-    expected = [readable for _, name, readable in matches
-                if name in selected and any(
-                    re.search(pattern, readable, re.I) for pattern in priority_patterns)]
-    if not any(token in first for token in expected):
-        errors.append(f"{label}: llvm-objdump emitted none of the requested priority method labels")
+    # llvm-objdump may print the raw Mach-O symbol spelling rather than
+    # Swift/ObjC demangled names. Validate against either representation.
+    expected = [(name, readable) for _, name, readable in matches if name in selected]
+    if not any(name in first or readable in first
+               for name, readable in expected):
+        errors.append(f"{label}: llvm-objdump output did not identify any requested priority symbols")
         continue
     all_sections.append(f"===== {label}: priority audio-tap lifecycle methods =====\\n{first}")
 
