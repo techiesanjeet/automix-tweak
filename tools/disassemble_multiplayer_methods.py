@@ -97,33 +97,37 @@ for label, binary in binaries:
                         if re.search(pattern, readable, re.I) and n not in critical)
     selected = list(critical)
 
+    # Objective-C selector methods often exist only in the runtime method
+    # list, not as Mach-O symbols. Disassemble by the IMP address from nm.
+    sorted_addresses = sorted(a for a, _ in raw)
+    match_by_name = {name: (address, readable)
+                     for address, name, readable in matches}
     def disassemble_symbols(names):
-        if not names:
-            return ""
-        # Preserve priority order instead of alphabetizing away critical methods.
-        ordered = list(dict.fromkeys(names))
-        # Apple's otool -p disassembles one named Mach-O symbol reliably.
-        # Run per symbol so one bad/missing name cannot suppress the others.
         chunks = []
-        for name in ordered:
-            output = run(["xcrun", "otool", "-arch", "arm64", "-tvV",
-                          "-p", name, str(binary)], timeout=120)
+        for name in dict.fromkeys(names):
+            item = match_by_name.get(name)
+            if not item:
+                continue
+            address, readable = item
+            next_addresses = [a for a in sorted_addresses if a > address]
+            # Bound each window to the next known symbol, with a conservative
+            # maximum to avoid dumping unrelated neighboring functions.
+            stop = min(next_addresses[0] if next_addresses else address + 0x400,
+                       address + 0x800)
+            output = run(["xcrun", "llvm-objdump", "--macho", "--disassemble",
+                          f"--start-address=0x{address:x}",
+                          f"--stop-address=0x{stop:x}", str(binary)], timeout=120)
             if output.strip():
-                chunks.append(output)
+                chunks.append(f"===== {name} ({readable}) @ 0x{address:x} =====\\n{output}")
         return "\\n".join(chunks)
 
     first = disassemble_symbols(selected)
     if not first.strip():
-        errors.append(f"{label}: targeted llvm-objdump returned no method output")
+        errors.append(f"{label}: address-bounded llvm-objdump returned no output")
         continue
-    # Fail closed if requested method labels are absent. Do not mistake a
-    # full executable dump for a successful focused disassembly.
-    # llvm-objdump may print the raw Mach-O symbol spelling rather than
-    # Swift/ObjC demangled names. Validate against either representation.
-    expected = [(name, readable) for _, name, readable in matches if name in selected]
-    if not any(name in first or readable in first
-               for name, readable in expected):
-        errors.append(f"{label}: llvm-objdump output did not identify any requested priority symbols")
+    expected_addresses = [match_by_name[n][0] for n in selected if n in match_by_name]
+    if not any(f"0x{address:x}" in first for address in expected_addresses):
+        errors.append(f"{label}: address-bounded disassembly did not include requested IMP addresses")
         continue
     all_sections.append(f"===== {label}: priority audio-tap lifecycle methods =====\\n{first}")
 
