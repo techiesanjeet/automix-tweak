@@ -81,62 +81,72 @@ for label, binary in binaries:
     # Disassemble only matched symbols. Full `otool -tvV` output for
     # Spotify is hundreds of MB and needlessly parses unrelated code.
     symbol_by_address = {a: n for a, n in raw}
-    selected = {n for _, n, _ in matches}
-    lifecycle = [(a, n, r) for a, n, r in matches
-        if re.search(r"audioTapDidEmitOutput|updateAudioTapForPlayerItem|"
-                     r"currentPlayerItemChanged|enableAudioTap|"
-                     r"createAudioTapWithPlayerItem", r, re.I)]
-    selected.update(n for _, n, _ in lifecycle)
+    # Prioritize the PCM-tap lifecycle methods. The previous broad alphabetical
+    # batch filled the 12 MB report cap with unrelated multiplayer symbols.
+    priority_patterns = [
+        r"createAudioTapWithPlayerItem", r"updateAudioTapForPlayerItem",
+        r"audioTapDidEmitOutput", r"BMPlayerSource.*enableAudioTap",
+        r"BMBetamaxPlayerImpl.*enableAudioTap",
+        r"BMPlayerSource.*(?:shouldEnableAudioTap|setShouldEnableAudioTap)",
+        r"BMPlayerSource.*(?:audioTapFactory|currentPlayerItemChanged)",
+        r"BMAudioTap.*(?:initWithPlayerItem|emit|isEnabled|audioTap)",
+    ]
+    critical = []
+    for pattern in priority_patterns:
+        critical.extend(n for _, n, readable in matches
+                        if re.search(pattern, readable, re.I) and n not in critical)
+    selected = list(critical)
 
     def disassemble_symbols(names):
         if not names:
             return ""
-        # llvm-objdump accepts a comma-separated symbol filter and emits only
-        # those functions, avoiding a whole-image text dump.
+        # Preserve priority order instead of alphabetizing away critical methods.
+        ordered = list(dict.fromkeys(names))
         return run(["xcrun", "llvm-objdump", "--macho", "--disassemble",
-                    "--disassemble-symbols=" + ",".join(sorted(names)),
+                    "--disassemble-symbols=" + ",".join(ordered),
                     str(binary)], timeout=900)
 
     first = disassemble_symbols(selected)
     if not first.strip():
         errors.append(f"{label}: targeted llvm-objdump returned no method output")
         continue
-    all_sections.append(f"===== {label}: targeted lifecycle and multiplayer methods =====\n{first}")
+    all_sections.append(f"===== {label}: priority audio-tap lifecycle methods =====\\n{first}")
 
-    # Follow direct calls only when the destination has a real symbol. Batch
-    # helper symbols into one filtered invocation per call-graph level.
+    # Follow direct calls through a bounded number of named helper symbols.
     known_addresses = set(symbol_by_address)
-    frontier = set()
+    selected_set = set(selected)
+    frontier = []
     for line in first.splitlines():
-        bm = re.search(r"\bbl\s+(?:0x)?([0-9a-fA-F]{8,16})", line)
+        bm = re.search(r"\\bbl\\s+(?:0x)?([0-9a-fA-F]{8,16})", line)
         if bm:
             address = int(bm.group(1), 16)
             if address in known_addresses:
                 name = symbol_by_address[address]
-                if name not in selected:
-                    frontier.add(name)
+                if name not in selected_set and name not in frontier:
+                    frontier.append(name)
     for level in (2, 3):
-        frontier -= selected
+        frontier = [n for n in frontier if n not in selected_set][:80]
         if not frontier:
             break
         helper_output = disassemble_symbols(frontier)
         if not helper_output.strip():
-            errors.append(f"{label}: no output for level-{level} helper symbols")
+            errors.append(f"{label}: no output for level-{level} named callees")
             break
         all_sections.append(
-            f"===== {label}: level-{level} named callees =====\n{helper_output}")
-        selected.update(frontier)
-        next_frontier = set()
+            f"===== {label}: level-{level} named callees =====\\n{helper_output}")
+        selected_set.update(frontier)
+        next_frontier = []
         for line in helper_output.splitlines():
-            bm = re.search(r"\bbl\s+(?:0x)?([0-9a-fA-F]{8,16})", line)
+            bm = re.search(r"\\bbl\\s+(?:0x)?([0-9a-fA-F]{8,16})", line)
             if bm:
                 address = int(bm.group(1), 16)
                 if address in known_addresses:
                     name = symbol_by_address[address]
-                    if name not in selected:
-                        next_frontier.add(name)
+                    if name not in selected_set and name not in next_frontier:
+                        next_frontier.append(name)
         frontier = next_frontier
-    print(f"[methods] {label}: emitted targeted methods and {len(selected)-len(matches)} named callees", flush=True)
+    print(f"[methods] {label}: emitted {len(selected)} priority methods and "
+          f"{len(selected_set)-len(selected)} bounded callees", flush=True)
 
 (out / "spotify-multiplayer-method-index.txt").write_text(
     "\n\n".join(all_indexes) + "\n", encoding="utf-8")
