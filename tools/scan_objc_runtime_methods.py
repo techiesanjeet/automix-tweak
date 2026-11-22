@@ -82,7 +82,7 @@ for start, stop, label in merged:
 status_pointer = "0x10ba450e0"
 status_hits = []
 for i, line in enumerate(lines):
-    if re.search(r"^\\s*name\\s+" + re.escape(status_pointer) + r"\\s+status\\s*$", line):
+    if re.search(r"^\s*name\s+" + re.escape(status_pointer) + r"\\s+status\\s*$", line):
         start, stop = max(0, i - 24), min(len(lines), i + 36)
         status_hits.append((start, stop, line.strip()))
 status_report = [
@@ -97,7 +97,7 @@ for n, (start, stop, label) in enumerate(status_hits, 1):
     status_report.extend(lines[start:stop])
     status_report.append("")
 (out / "spotify-status-selector-contexts.txt").write_text(
-    "\\n".join(status_report), encoding="utf-8")
+    "\n".join(status_report), encoding="utf-8")
 print(f"[objc] captured {len(status_hits)} exact status-selector contexts", flush=True)
 
 (out / "spotify-objc-runtime-target-contexts.txt").write_text(
@@ -128,7 +128,7 @@ imp_rows = [
     for imp in sorted(candidate_imps)
 ]
 (out / "spotify-objc-imp-addresses.txt").write_text(
-    "\\n".join(imp_rows) + "\\n", encoding="utf-8")
+    "\n".join(imp_rows) + "\\n", encoding="utf-8")
 summary = [
     "Objective-C IMP address inventory",
     f"Unique IMP addresses: {len(candidate_imps)}",
