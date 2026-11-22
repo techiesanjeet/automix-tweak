@@ -1,19 +1,16 @@
 #!/usr/bin/env python3
-"""Map unresolved audio-tap gates through Mach-O ObjC stubs to selector names."""
-import pathlib, re, subprocess
+"""Resolve audio-tap Objective-C stub selector references to selector strings."""
+import pathlib, subprocess
 ROOT=pathlib.Path.cwd()
 apps=list((ROOT/"ipa-work"/"extracted").rglob("Spotify.app"))
 if not apps: raise SystemExit("Spotify.app not found; run tools/analyze_ipa.py first.")
-binary=apps[0]/"Spotify"
-out=ROOT/"analysis-output"; out.mkdir(exist_ok=True)
+binary=apps[0]/"Spotify"; out=ROOT/"analysis-output"; out.mkdir(exist_ok=True)
 targets=[(0x109bad7c0,"updateAudioTapForPlayerItem gate 1"),(0x109bb0f88,"updateAudioTapForPlayerItem gate 2")]
 def run(args):
  p=subprocess.run(args,stdout=subprocess.PIPE,stderr=subprocess.STDOUT,text=True,errors="replace",timeout=600)
  if p.returncode: raise RuntimeError(f"{args[0]} exited {p.returncode}: {p.stdout[-1500:]}")
  return p.stdout
-# otool prints VM addresses/sizes in hex, but file offsets/sizes as decimal.
-lines=run(["otool","-l",str(binary)]).splitlines()
-segments=[]; seg=None; sec=None
+lines=run(["otool","-l",str(binary)]).splitlines(); segments=[]; seg=None; sec=None
 for line in lines:
  s=line.strip()
  if s=="cmd LC_SEGMENT_64": seg={"sections":[]}; segments.append(seg); sec=None
@@ -30,71 +27,57 @@ for line in lines:
  elif sec is not None and s.startswith("flags "): sec["flags"]=s.split(None,1)[1]
  elif s.startswith("cmd ") and s!="cmd LC_SEGMENT_64": seg=None; sec=None
 data=binary.read_bytes()
-sections=[]
+def locate(vm):
+ for sg in segments:
+  for sc in sg["sections"]:
+   if all(k in sc for k in ("addr","size","offset")) and sc["addr"]<=vm<sc["addr"]+sc["size"]:
+    return sc["offset"]+(vm-sc["addr"]),sg,sc
+ return None
+report=["Spotify Mach-O audio-tap gate selector resolution",f"Binary: {binary}",f"Size: {len(data)} bytes",""]
+for address,label in targets:
+ report += [f"===== {label}: 0x{address:x} ====="]
+ hit=locate(address)
+ if not hit: report.append("Stub address not mapped to a section."); report.append(""); continue
+ off,sg,sc=hit
+ report.append(f"STUB {sg['name']},{sc['name']} initprot={sg.get('initprot','?')} file=0x{off:x}")
+ b=data[off:off+12]
+ if len(b)<12: report.append("Stub truncated."); report.append(""); continue
+ w1=int.from_bytes(b[:4],"little"); w2=int.from_bytes(b[4:8],"little"); w3=int.from_bytes(b[8:12],"little")
+ imm=((w1>>5)&0x7ffff)<<2 | ((w1>>29)&3)
+ if imm&(1<<20): imm-=1<<21
+ page=(address&~0xfff)+(imm<<12)
+ ldr_offset=((w2>>10)&0xfff)*8
+ selref=page+ldr_offset
+ bimm=w3&0x3ffffff
+ if bimm&(1<<25): bimm-=1<<26
+ branch=address+8+(bimm<<2)
+ report.append(f"ADRP_PAGE=0x{page:x} LDR_OFFSET=0x{ldr_offset:x} SELREF=0x{selref:x} BRANCH=0x{branch:x}")
+ ref=locate(selref)
+ if not ref: report.append("Selector-reference slot not file-backed."); report.append(""); continue
+ ref_off,rsg,rsc=ref
+ raw=data[ref_off:ref_off+8]
+ ptr=int.from_bytes(raw,"little")
+ report.append(f"SELREF {rsg['name']},{rsc['name']} file=0x{ref_off:x} raw={raw.hex(' ')} pointer=0x{ptr:x}")
+ # ObjC selref pointer is a rebased VM pointer; strip only top-byte metadata if present.
+ candidates=[ptr,ptr&0x00ffffffffffffff]
+ found=False
+ for candidate in candidates:
+  target=locate(candidate)
+  if not target: continue
+  toff,tsg,tsc=target
+  if tsc["name"]!="__objc_methname": continue
+  end=data.find(b"\0",toff,min(toff+512,len(data)))
+  if end<0: end=min(toff+512,len(data))
+  value=data[toff:end].decode("utf-8","replace")
+  report.append(f"SELECTOR_STRING {tsg['name']},{tsc['name']} vm=0x{candidate:x} file=0x{toff:x}: {value}")
+  found=True; break
+ if not found: report.append("Pointer did not resolve into __objc_methname; inspect raw pointer/fixups.")
+ report.append("")
+report.append("===== Objective-C stub section inventory =====")
 for sg in segments:
  for sc in sg["sections"]:
-  if "addr" in sc and "size" in sc and "offset" in sc:
-   sections.append((sg,sc))
-def find_section(addr):
- return [(sg,sc) for sg,sc in sections if sc["addr"]<=addr<sc["addr"]+sc["size"]]
-def vm_to_file(addr):
- hits=find_section(addr)
- if not hits: return None
- sg,sc=hits[0]
- return sc["offset"]+(addr-sc["addr"]),sg,sc
-report=["Spotify Mach-O audio-tap gate address map",f"Binary: {binary}",f"Size: {len(data)} bytes",""]
-# Full chained-fixup output is searched for selector-reference pointer slots.
-fixups=run(["dyld_info","-fixup_chain_details",str(binary)])
-fixup_by_offset={}
-for line in fixups.splitlines():
- m=re.match(r"\\s*0x([0-9a-fA-F]+):.*?(?:target: 0x([0-9a-fA-F]+))",line)
- if m: fixup_by_offset[int(m.group(1),16)]=(int(m.group(2),16),line.strip())
-for addr,label in targets:
- report += [f"===== {label}: 0x{addr:x} ====="]
- hits=find_section(addr)
- if not hits:
-  report.append("No section contains this VM address."); report.append(""); continue
- sg,sc=hits[0]; off=sc["offset"]+(addr-sc["addr"])
- report.append(f"SEGMENT {sg['name']} initprot={sg.get('initprot','?')} vmaddr=0x{sg['vmaddr']:x}")
- report.append(f"SECTION {sc['name']} addr=0x{sc['addr']:x} size=0x{sc['size']:x} file_offset=0x{off:x} flags={sc.get('flags','?')}")
- chunk=data[off:off+16]
- report.append("STUB_BYTES "+chunk.hex(" "))
- if len(chunk)>=12:
-  w1=int.from_bytes(chunk[0:4],"little"); w2=int.from_bytes(chunk[4:8],"little"); w3=int.from_bytes(chunk[8:12],"little")
-  # Decode ADRP Xn, LDR Xn,[Xn,#imm], B imm26 sequence.
-  immlo=(w1>>29)&3; immhi=(w1>>5)&0x7ffff; imm=(immhi<<2)|immlo
-  if imm&(1<<20): imm-=1<<21
-  page=(addr&~0xfff)+(imm<<12)
-  ldr_off=((w2>>10)&0xfff)*8
-  selref=page+ldr_off
-  bimm=w3&0x3ffffff
-  if bimm&(1<<25): bimm-=1<<26
-  branch=addr+8+(bimm<<2)
-  report.append(f"DECODE adrp=0x{page:x}; ldr_offset=0x{ldr_off:x}; selector_ref=0x{selref:x}; branch_target=0x{branch:x}")
-  sel=vm_to_file(selref)
-  if sel:
-   sel_off,sel_seg,sel_sec=sel
-   raw=data[sel_off:sel_off+8]
-   report.append(f"SELREF_SLOT segment={sel_seg['name']} section={sel_sec['name']} file_offset=0x{sel_off:x} raw={raw.hex(' ')}")
-   fx=fixup_by_offset.get(sel_off)
-   if fx:
-    target,desc=fx
-    # chained fixup target is image-base-relative for this Mach-O.
-    target_vm=0x100000000+target
-    report.append(f"SELREF_FIXUP {desc}; resolved_vm=0x{target_vm:x}")
-    target_map=vm_to_file(target_vm)
-    if target_map:
-     target_off,tseg,tsec=target_map
-     tail=data[target_off:target_off+160].split(b"\\0",1)[0]
-     report.append(f"SELECTOR_CSTRING segment={tseg['name']} section={tsec['name']} file_offset=0x{target_off:x}: {tail.decode('utf-8','replace')}")
-   else:
-    report.append("No chained-fixup record matched selector-reference file offset.")
-  else: report.append("Selector-reference address did not map to a file-backed section.")
- report.append("")
-report += ["===== Relevant Mach-O section inventory ====="]
-for sg,sc in sections:
- if sc["name"] in ("__objc_stubs","__objc_selrefs","__objc_methname"):
-  report.append(f"{sg['name']},{sc['name']},vm=0x{sc['addr']:x},size=0x{sc['size']:x},file=0x{sc['offset']:x},flags={sc.get('flags','?')}")
-report += ["===== otool -Iv indirect symbols (first 4000 chars) =====",run(["otool","-Iv",str(binary)])[:4000]]
-p=out/"spotify-audio-tap-gate-address-map.txt"; p.write_text("\\n".join(report)+"\\n",encoding="utf-8")
+  if sc.get("name") in ("__objc_stubs","__objc_selrefs","__objc_methname"):
+   report.append(f"{sg['name']},{sc['name']},vm=0x{sc.get('addr',0):x},size=0x{sc.get('size',0):x},file=0x{sc.get('offset',0):x}")
+p=out/"spotify-audio-tap-gate-address-map.txt"
+p.write_text("\n".join(report)+"\n",encoding="utf-8")
 print(f"[gate-map] wrote {p} ({p.stat().st_size} bytes)")
