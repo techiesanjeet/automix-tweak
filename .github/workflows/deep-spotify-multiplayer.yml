@@ -17,6 +17,7 @@ on:
       - "tools/disassemble_multiplayer_methods.py"
       - "tools/scan_objc_runtime_methods.py"
       - "tools/trace_transition_service_calls.py"
+      - "tools/trace_audio_tap_enablement.py"
 
 permissions:
   contents: read
@@ -39,6 +40,8 @@ jobs:
         run: python3 tools/scan_objc_runtime_methods.py
       - name: Trace transition service direct callees
         run: python3 tools/trace_transition_service_calls.py
+      - name: Trace BMAudioTap enablement call sites
+        run: python3 tools/trace_audio_tap_enablement.py
       - name: Upload analysis only (never the IPA)
         uses: actions/upload-artifact@v4
         with:
@@ -61,5 +64,6 @@ jobs:
             analysis-output/spotify-objc-runtime-target-contexts.txt
             analysis-output/spotify-objc-imp-disassembly.txt
             analysis-output/spotify-transition-service-call-trace.txt
+            analysis-output/spotify-audio-tap-enablement-xrefs.txt
           if-no-files-found: warn
           retention-days: 7
