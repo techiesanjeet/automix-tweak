@@ -78,11 +78,10 @@ for label, binary in binaries:
     if not matches:
         continue
 
-    # Disassemble only matched symbols. Full `otool -tvV` output for
-    # Spotify is hundreds of MB and needlessly parses unrelated code.
-    symbol_by_address = {a: n for a, n in raw}
-    # Prioritize the PCM-tap lifecycle methods. The previous broad alphabetical
-    # batch filled the 12 MB report cap with unrelated multiplayer symbols.
+    # Disassemble the selected IMPs in ONE llvm-objdump process.
+    # Repeated address-range invocations reparsed the 138 MB Mach-O for every
+    # method and exhausted the macOS runner. llvm-objdump supports a comma-
+    # separated --disassemble-symbols list, which parses the image once.
     priority_patterns = [
         r"createAudioTapWithPlayerItem", r"updateAudioTapForPlayerItem",
         r"audioTapDidEmitOutput", r"BMPlayerSource.*enableAudioTap",
@@ -95,48 +94,36 @@ for label, binary in binaries:
     for pattern in priority_patterns:
         critical.extend(n for _, n, readable in matches
                         if re.search(pattern, readable, re.I) and n not in critical)
-    selected = list(critical)
-
-    # Objective-C selector methods often exist only in the runtime method
-    # list, not as Mach-O symbols. Disassemble by the IMP address from nm.
-    sorted_addresses = sorted(a for a, _ in raw)
-    match_by_name = {name: (address, readable)
-                     for address, name, readable in matches}
-    def disassemble_symbols(names):
-        chunks = []
-        for name in dict.fromkeys(names):
-            item = match_by_name.get(name)
-            if not item:
-                continue
-            address, readable = item
-            # O(log n) lookup: scanning ~200k addresses for every IMP made this
-            # stage quadratic and caused the macOS runner to be killed.
-            pos = bisect.bisect_right(sorted_addresses, address)
-            next_address = sorted_addresses[pos] if pos < len(sorted_addresses) else address + 0x400
-            # Keep each IMP window small and bounded.
-            stop = min(next_address, address + 0x600)
-            output = run(["xcrun", "llvm-objdump", "--macho", "--disassemble",
-                          f"--start-address=0x{address:x}",
-                          f"--stop-address=0x{stop:x}", str(binary)], timeout=120)
-            if output.strip():
-                chunks.append(f"===== {name} ({readable}) @ 0x{address:x} =====\\n{output}")
-        return "\\n".join(chunks)
-
-    first = disassemble_symbols(selected)
-    if not first.strip():
-        errors.append(f"{label}: address-bounded llvm-objdump returned no output")
+    selected = list(dict.fromkeys(critical))
+    if not selected:
+        errors.append(f"{label}: no priority audio-tap symbols matched")
         continue
-    expected_addresses = [match_by_name[n][0] for n in selected if n in match_by_name]
-    if not any(f"0x{address:x}" in first for address in expected_addresses):
-        errors.append(f"{label}: address-bounded disassembly did not include requested IMP addresses")
-        continue
-    all_sections.append(f"===== {label}: priority audio-tap lifecycle methods =====\\n{first}")
 
-    # Do not recursively disassemble callees here. llvm-objdump reparses
-    # the Mach-O image for every range; expanding up to 80 helpers per level
-    # multiplied that expensive work until CI exhausted memory/time.
-    print(f"[methods] {label}: emitted {len(selected)} priority methods; "
-          f"callee expansion intentionally deferred", flush=True)
+    # Symbols are the original nm/mangled names; commas cannot occur in the
+    # selected Swift/Objective-C symbol names used by these patterns.
+    symbol_arg = ",".join(selected)
+    try:
+        output = run(["xcrun", "llvm-objdump", "--macho",
+                      f"--disassemble-symbols={symbol_arg}", str(binary)],
+                     timeout=600)
+    except subprocess.TimeoutExpired:
+        errors.append(f"{label}: single-pass llvm-objdump timed out for {len(selected)} symbols")
+        continue
+    if not output.strip():
+        errors.append(f"{label}: single-pass symbol disassembly returned no output")
+        continue
+
+    # Preserve method-specific headings for easier report reading. llvm-objdump
+    # prints symbol labels; validate at least one selected raw symbol/address.
+    found = [n for n in selected if n in output]
+    if not found:
+        errors.append(f"{label}: output did not contain any requested symbol labels")
+        continue
+    all_sections.append(
+        f"===== {label}: priority audio-tap lifecycle methods "
+        f"({len(found)}/{len(selected)} matched) =====\\n{output[:8_000_000]}")
+    print(f"[methods] {label}: disassembled {len(found)}/{len(selected)} priority methods "
+          "in one pass; callee expansion deferred", flush=True)
 
 (out / "spotify-multiplayer-method-index.txt").write_text("\n\n".join(all_indexes) + "\n", encoding="utf-8")
 (out / "spotify-multiplayer-method-disassembly.txt").write_text(
