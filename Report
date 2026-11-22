@@ -90,3 +90,5 @@ audioSession category=AVAudioSessionCategoryPlayback mode=AVAudioSessionModeDefa
 audioOutput=Speaker type=Speaker
 notification=UIApplicationDidBecomeActiveNotification object=<MusicApp_ContainerWiring.SpotifyUIApplication: 0x1131605e0> userInfo={
 }
+notification=UIApplicationDidBecomeActiveNotification object=<MusicApp_ContainerWiring.SpotifyUIApplication: 0x1131605e0> userInfo={
+}
