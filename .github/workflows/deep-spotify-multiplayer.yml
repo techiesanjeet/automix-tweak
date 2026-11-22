@@ -69,5 +69,6 @@ jobs:
             analysis-output/spotify-objc-imp-disassembly.txt
             analysis-output/spotify-transition-service-call-trace.txt
             analysis-output/spotify-audio-tap-enablement-xrefs.txt
+            analysis-output/spotify-status-selector-contexts.txt
           if-no-files-found: warn
           retention-days: 7
