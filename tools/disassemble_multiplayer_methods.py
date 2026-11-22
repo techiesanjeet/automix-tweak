@@ -78,10 +78,9 @@ for label, binary in binaries:
     if not matches:
         continue
 
-    # Disassemble the selected IMPs in ONE llvm-objdump process.
-    # Repeated address-range invocations reparsed the 138 MB Mach-O for every
-    # method and exhausted the macOS runner. llvm-objdump supports a comma-
-    # separated --disassemble-symbols list, which parses the image once.
+    # Stream the Mach-O disassembly once and retain only selected IMP ranges.
+    # --disassemble-symbols has inconsistent matching for Swift-mangled names
+    # on the Apple LLVM toolchain. Streaming avoids capturing the full output.
     priority_patterns = [
         r"createAudioTapWithPlayerItem", r"updateAudioTapForPlayerItem",
         r"audioTapDidEmitOutput", r"BMPlayerSource.*enableAudioTap",
@@ -92,38 +91,63 @@ for label, binary in binaries:
     ]
     critical = []
     for pattern in priority_patterns:
-        critical.extend(n for _, n, readable in matches
-                        if re.search(pattern, readable, re.I) and n not in critical)
-    selected = list(dict.fromkeys(critical))
+        critical.extend((a, n, readable) for a, n, readable in matches
+                        if re.search(pattern, readable, re.I))
+    # Keep unique IMPs, not duplicate symbol aliases.
+    selected_by_address = {}
+    for address, name, readable in critical:
+        selected_by_address.setdefault(address, (name, readable))
+    selected = sorted((a, n, r) for a, (n, r) in selected_by_address.items())
     if not selected:
         errors.append(f"{label}: no priority audio-tap symbols matched")
         continue
 
-    # Symbols are the original nm/mangled names; commas cannot occur in the
-    # selected Swift/Objective-C symbol names used by these patterns.
-    symbol_arg = ",".join(selected)
-    try:
-        output = run(["xcrun", "llvm-objdump", "--macho",
-                      f"--disassemble-symbols={symbol_arg}", str(binary)],
-                     timeout=600)
-    except subprocess.TimeoutExpired:
-        errors.append(f"{label}: single-pass llvm-objdump timed out for {len(selected)} symbols")
-        continue
-    if not output.strip():
-        errors.append(f"{label}: single-pass symbol disassembly returned no output")
-        continue
+    all_addresses = sorted(set(a for a, _ in raw))
+    ranges = []
+    for address, name, readable in selected:
+        pos = bisect.bisect_right(all_addresses, address)
+        next_address = all_addresses[pos] if pos < len(all_addresses) else address + 0x400
+        stop = min(next_address, address + 0x600)
+        ranges.append((address, stop, name, readable))
 
-    # Preserve method-specific headings for easier report reading. llvm-objdump
-    # prints symbol labels; validate at least one selected raw symbol/address.
-    found = [n for n in selected if n in output]
-    if not found:
-        errors.append(f"{label}: output did not contain any requested symbol labels")
+    print(f"[methods] {label}: streaming disassembly for {len(ranges)} IMP ranges", flush=True)
+    proc = subprocess.Popen(
+        ["xcrun", "llvm-objdump", "--macho", "--disassemble", str(binary)],
+        stdout=subprocess.PIPE, stderr=subprocess.STDOUT,
+        text=True, errors="replace", bufsize=1)
+    captured = {address: [] for address, _, _, _ in ranges}
+    range_starts = [item[0] for item in ranges]
+    address_re = re.compile(r"^\\s*([0-9a-fA-F]{8,16}):")
+    try:
+        for line in proc.stdout:
+            match = address_re.match(line)
+            if not match:
+                continue
+            instruction_address = int(match.group(1), 16)
+            idx = bisect.bisect_right(range_starts, instruction_address) - 1
+            if idx >= 0:
+                begin, stop, name, readable = ranges[idx]
+                if begin <= instruction_address < stop:
+                    captured[begin].append(line.rstrip())
+        return_code = proc.wait(timeout=600)
+    except Exception:
+        proc.kill()
+        proc.wait()
+        raise
+    emitted = 0
+    for begin, stop, name, readable in ranges:
+        lines = captured[begin]
+        if lines:
+            all_sections.append(
+                f"===== {label}: {name} ({readable}) @ 0x{begin:x} =====\\n" +
+                "\\n".join(lines))
+            emitted += 1
+    if return_code != 0:
+        errors.append(f"{label}: llvm-objdump exited {return_code}")
+    if not emitted:
+        errors.append(f"{label}: streaming disassembly found no instructions in selected IMP ranges")
         continue
-    all_sections.append(
-        f"===== {label}: priority audio-tap lifecycle methods "
-        f"({len(found)}/{len(selected)} matched) =====\\n{output[:8_000_000]}")
-    print(f"[methods] {label}: disassembled {len(found)}/{len(selected)} priority methods "
-          "in one pass; callee expansion deferred", flush=True)
+    print(f"[methods] {label}: retained {emitted}/{len(ranges)} IMP ranges", flush=True)
 
 (out / "spotify-multiplayer-method-index.txt").write_text("\n\n".join(all_indexes) + "\n", encoding="utf-8")
 (out / "spotify-multiplayer-method-disassembly.txt").write_text(
