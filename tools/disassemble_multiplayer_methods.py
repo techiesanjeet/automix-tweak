@@ -121,8 +121,15 @@ for label, binary in binaries:
             (0x107c8ec2c, "enableAudioTap helper 3"),
             (0x107c9b4a8, "enableAudioTap helper 4"),
             (0x107c8ebf4, "enableAudioTap tail target"),
-            (0x109bad7c0, "updateAudioTap helper bool"),
-            (0x109bb0f88, "updateAudioTap helper constant"),
+            (0x109bad7c0, "updateAudioTap helper bool (stub entry)"),
+            (0x109bb0f88, "updateAudioTap helper constant (stub entry)"),
+            # The four enableAudioTap branch destinations above are linker
+            # stubs. Follow their branch instructions to the implementation
+            # addresses observed in this binary's stub table.
+            (0x109b9588c, "enableAudioTap resolved helper 1"),
+            (0x109afc058, "enableAudioTap resolved helper 3"),
+            (0x109b79dac, "enableAudioTap resolved helper 4"),
+            (0x109afbfa0, "enableAudioTap resolved tail target"),
         ]
         existing = {start for start, _, _, _ in ranges}
         for address, description in helper_targets:
