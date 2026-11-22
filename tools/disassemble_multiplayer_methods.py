@@ -106,8 +106,9 @@ for label, binary in binaries:
     ranges = []
     for address, name, readable in selected:
         pos = bisect.bisect_right(all_addresses, address)
-        next_address = all_addresses[pos] if pos < len(all_addresses) else address + 0x400
-        stop = min(next_address, address + 0x600)
+        # Symbol tables contain local labels only a few bytes after a method
+        # start; do not let those truncate the method window.
+        stop = address + 0x600
         ranges.append((address, stop, name, readable))
 
     print(f"[methods] {label}: streaming disassembly for {len(ranges)} IMP ranges", flush=True)
@@ -117,12 +118,17 @@ for label, binary in binaries:
         text=True, errors="replace", bufsize=1)
     captured = {address: [] for address, _, _, _ in ranges}
     range_starts = [item[0] for item in ranges]
-    address_re = re.compile(r"^\\s*([0-9a-fA-F]{8,16}):")
+    address_re = re.compile(r"(?:0x)?([0-9a-fA-F]{8,16}):")
+    sample_lines = []
+    parsed_addresses = 0
     try:
         for line in proc.stdout:
-            match = address_re.match(line)
+            if len(sample_lines) < 24:
+                sample_lines.append(line.rstrip())
+            match = address_re.search(line)
             if not match:
                 continue
+            parsed_addresses += 1
             instruction_address = int(match.group(1), 16)
             idx = bisect.bisect_right(range_starts, instruction_address) - 1
             if idx >= 0:
@@ -142,6 +148,8 @@ for label, binary in binaries:
                 f"===== {label}: {name} ({readable}) @ 0x{begin:x} =====\\n" +
                 "\\n".join(lines))
             emitted += 1
+    print(f"[methods] {label}: parsed {parsed_addresses} instruction addresses; "
+          f"sample={sample_lines[:8]}", flush=True)
     if return_code != 0:
         errors.append(f"{label}: llvm-objdump exited {return_code}")
     if not emitted:
