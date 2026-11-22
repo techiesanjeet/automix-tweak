@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
-"""Find static call sites for the BMAudioTap enablement chain.
+"""Find direct and indirect references around the BMAudioTap enablement chain.
 
-Streams one complete disassembly and retains only relevant call-site context.
+Streams one complete disassembly and retains relevant references plus diagnostics.
 Static analysis only; it does not establish runtime execution.
 """
 import pathlib
@@ -34,42 +34,58 @@ DIRECT_TARGETS = {
     0x107208d90: "BMAudioTapFactory.createAudioTapWithPlayerItem:",
     0x106d7af4c: "MultiPlayerAudioTap.audioTapDidEmitOutput:",
 }
-address_re = re.compile(r"^\s*((?:0x)?[0-9a-fA-F]{8,16}):")
-target_re = re.compile(r"\bbl\s+(?:0x)?([0-9a-fA-F]{8,16})")
+address_re = re.compile(r"^\\s*((?:0x)?[0-9a-fA-F]{8,16}):")
+branch_re = re.compile(r"\\bbl\\s+(?:0x)?([0-9a-fA-F]{8,16})")
+blr_re = re.compile(r"\\bblr\\s+([wx]\\d+)")
+hex_re = re.compile(r"0x([0-9a-fA-F]{8,16})")
 
 cmd = ["xcrun", "llvm-objdump", "--macho", "--disassemble", str(binary)]
 print("[audio-xrefs] streaming full Spotify disassembly", flush=True)
 proc = subprocess.Popen(cmd, stdout=subprocess.PIPE, stderr=subprocess.STDOUT,
                         text=True, errors="replace", bufsize=1)
-before = deque(maxlen=24)
+before = deque(maxlen=16)
 hits = []
-current = []
-current_hit = False
-instructions = 0
+instructions = branches = indirect_branches = direct_matches = address_refs = name_matches = 0
+branch_samples = []
 try:
     for raw in proc.stdout:
         line = raw.rstrip()
         if address_re.match(line):
             instructions += 1
-        target = target_re.search(line)
-        direct = int(target.group(1), 16) if target else None
+        branch = branch_re.search(line)
+        indirect = blr_re.search(line)
+        if branch:
+            branches += 1
+            if len(branch_samples) < 30:
+                branch_samples.append(line)
+        if indirect:
+            indirect_branches += 1
+
+        referenced = []
+        for value in hex_re.findall(line):
+            label = DIRECT_TARGETS.get(int(value, 16))
+            if label and label not in referenced:
+                referenced.append(label)
         matched_names = [n for n in NEEDLES if n in line]
-        matched_direct = DIRECT_TARGETS.get(direct) if direct is not None else None
-        if matched_names or matched_direct:
+        direct = DIRECT_TARGETS.get(int(branch.group(1), 16)) if branch else None
+
+        if direct:
+            direct_matches += 1
+        if referenced:
+            address_refs += len(referenced)
+        if matched_names:
+            name_matches += len(matched_names)
+
+        labels = []
+        labels.extend(matched_names)
+        if direct:
+            labels.append("direct-call-target: " + direct)
+        labels.extend("address-reference: " + x for x in referenced if x != direct)
+        if labels:
             context = list(before)
             context.append(line)
-            hits.append((matched_names, matched_direct, context))
-            current = []
-            current_hit = True
-        elif current_hit:
-            current.append(line)
-            if len(current) >= 24:
-                hits[-1][2].extend(current)
-                current = []
-                current_hit = False
+            hits.append((labels, context))
         before.append(line)
-    if current_hit and current:
-        hits[-1][2].extend(current)
     code = proc.wait(timeout=600)
 except Exception:
     proc.kill()
@@ -77,20 +93,23 @@ except Exception:
     raise
 
 report = [
-    "BMAudioTap enablement static call-site trace",
-    "Static disassembly only; a call site does not prove runtime execution.",
-    f"Parsed {instructions} instruction lines; objdump exit={code}.",
+    "BMAudioTap enablement static reference trace",
+    "Static disassembly only; a reference does not prove runtime execution.",
+    f"Parsed {instructions} instruction lines; direct BL={branches}; indirect BLR={indirect_branches};",
+    f"known direct-target matches={direct_matches}; known-address references={address_refs}; method-name matches={name_matches}; objdump exit={code}.",
+    "",
+    "===== Sample direct branch instructions (first 30) =====",
+    *branch_samples,
     "",
 ]
-for i, (names, direct, context) in enumerate(hits, 1):
-    label = ", ".join(names) if names else direct
-    report.append(f"===== Hit {i}: {label} =====")
+for i, (labels, context) in enumerate(hits, 1):
+    report.append(f"===== Reference {i}: {', '.join(labels)} =====")
     report.extend(context)
     report.append("")
 path = out / "spotify-audio-tap-enablement-xrefs.txt"
-path.write_text("\n".join(report), encoding="utf-8")
-print(f"[audio-xrefs] wrote {len(hits)} hits to {path}", flush=True)
+path.write_text("\\n".join(report), encoding="utf-8")
+print(f"[audio-xrefs] parsed {instructions} instructions, {branches} BL, {indirect_branches} BLR, "
+      f"{direct_matches} known direct targets, {address_refs} address refs, {name_matches} name matches; "
+      f"wrote {len(hits)} references", flush=True)
 if code:
     raise SystemExit(f"llvm-objdump exited {code}")
-if not hits:
-    raise SystemExit("No audio-tap enablement call sites found in disassembly.")
