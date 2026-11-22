@@ -122,7 +122,7 @@ for n, (start, stop, label) in enumerate(method_hits, 1):
     method_report.extend(lines[start:stop])
     method_report.append("")
 (out / "spotify-status-method-list-owners.txt").write_text(
-    "\\n".join(method_report), encoding="utf-8")
+    "\n".join(method_report), encoding="utf-8")
 print(f"[objc] captured {len(method_hits)} status method-list entries", flush=True)
 
 (out / "spotify-objc-runtime-target-contexts.txt").write_text(
