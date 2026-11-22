@@ -148,6 +148,12 @@ for label, binary in binaries:
     address_re = re.compile(r"(?:0x)?([0-9a-fA-F]{8,16}):")
     sample_lines = []
     parsed_addresses = 0
+    # Sweep the monotonically increasing objdump stream with an active interval
+    # set. A later, short helper window may expire before an earlier, longer
+    # method window; stopping at the first expired interval loses the earlier
+    # overlap. Keep every live interval until its own stop address.
+    next_range = 0
+    active_ranges = []
     try:
         for line in proc.stdout:
             if len(sample_lines) < 24:
@@ -157,19 +163,15 @@ for label, binary in binaries:
                 continue
             parsed_addresses += 1
             instruction_address = int(match.group(1), 16)
-            # Helper windows frequently overlap named IMP windows (and each
-            # other). Retain an instruction in every matching window rather
-            # than assigning it only to the nearest preceding start; otherwise
-            # later helper starts silently receive no instructions.
-            idx = bisect.bisect_right(range_starts, instruction_address) - 1
-            while idx >= 0:
+            while (next_range < len(ranges) and
+                   ranges[next_range][0] <= instruction_address):
+                active_ranges.append(next_range)
+                next_range += 1
+            active_ranges = [idx for idx in active_ranges
+                             if ranges[idx][1] > instruction_address]
+            for idx in active_ranges:
                 begin, stop, name, readable = ranges[idx]
-                if instruction_address < stop:
-                    if begin <= instruction_address:
-                        captured[begin].append(line.rstrip())
-                    idx -= 1
-                else:
-                    break
+                captured[begin].append(line.rstrip())
         return_code = proc.wait(timeout=600)
     except Exception:
         proc.kill()
