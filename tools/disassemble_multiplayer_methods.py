@@ -189,6 +189,24 @@ for label, binary in binaries:
           f"sample={sample_lines[:8]}", flush=True)
     if return_code != 0:
         errors.append(f"{label}: llvm-objdump exited {return_code}")
+    if label == "Spotify":
+        # Direct bounded disassembly for gate helpers omitted by the broad
+        # symbol sweep. These two call targets decide whether tap setup runs.
+        for target, description in [
+            (0x109bad7c0, "updateAudioTap gate helper 1"),
+            (0x109bb0f88, "updateAudioTap gate helper 2"),
+        ]:
+            direct = run([
+                "xcrun", "llvm-objdump", "--macho", "--disassemble",
+                f"--start-address=0x{target:x}",
+                f"--stop-address=0x{target + 0x100:x}", str(binary)
+            ], timeout=120)
+            all_sections.append(
+                f"===== {label}: {description} (direct address disassembly) @ 0x{target:x} =====\\n"
+                + direct.strip())
+            if not re.search(rf"(?m)^\\s*{target:x}:", direct, re.I):
+                errors.append(
+                    f"{label}: direct disassembly produced no instruction at 0x{target:x}")
     if not emitted:
         errors.append(f"{label}: streaming disassembly found no instructions in selected IMP ranges")
         continue
