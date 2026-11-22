@@ -34,9 +34,9 @@ DIRECT_TARGETS = {
     0x107208d90: "BMAudioTapFactory.createAudioTapWithPlayerItem:",
     0x106d7af4c: "MultiPlayerAudioTap.audioTapDidEmitOutput:",
 }
-address_re = re.compile(r"^\\s*((?:0x)?[0-9a-fA-F]{8,16}):")
-branch_re = re.compile(r"\\bbl\\s+(?:0x)?([0-9a-fA-F]{8,16})")
-blr_re = re.compile(r"\\bblr\\s+([wx]\\d+)")
+address_re = re.compile(r"^\s*((?:0x)?[0-9a-fA-F]{8,16}):")
+branch_re = re.compile(r"\bbl\s+(?:0x)?([0-9a-fA-F]{8,16})")
+blr_re = re.compile(r"\bblr\s+([wx]\d+)")
 hex_re = re.compile(r"0x([0-9a-fA-F]{8,16})")
 
 cmd = ["xcrun", "llvm-objdump", "--macho", "--disassemble", str(binary)]
@@ -107,7 +107,7 @@ for i, (labels, context) in enumerate(hits, 1):
     report.extend(context)
     report.append("")
 path = out / "spotify-audio-tap-enablement-xrefs.txt"
-path.write_text("\\n".join(report), encoding="utf-8")
+path.write_text("\n".join(report), encoding="utf-8")
 print(f"[audio-xrefs] parsed {instructions} instructions, {branches} BL, {indirect_branches} BLR, "
       f"{direct_matches} known direct targets, {address_refs} address refs, {name_matches} name matches; "
       f"wrote {len(hits)} references", flush=True)
