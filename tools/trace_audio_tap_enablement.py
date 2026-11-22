@@ -31,7 +31,7 @@ SELECTORS = (
     "setAudioTap:",
     "audioTap",
 )
-address_re = re.compile(r"^\\s*([0-9a-fA-F]{8,16})\\s+(.+)$")
+address_re = re.compile(r"^\s*([0-9a-fA-F]{8,16})\s+(.+)$")
 cmd = ["otool", "-tvV", str(binary)]
 print("[audio-xrefs] streaming annotated otool disassembly", flush=True)
 proc = subprocess.Popen(cmd, stdout=subprocess.PIPE, stderr=subprocess.STDOUT,
@@ -71,7 +71,7 @@ for i, (selectors, context) in enumerate(hits, 1):
     report.extend(context)
     report.append("")
 path = out / "spotify-audio-tap-enablement-xrefs.txt"
-path.write_text("\\n".join(report), encoding="utf-8")
+path.write_text("\n".join(report), encoding="utf-8")
 print(f"[audio-xrefs] parsed {instructions} instructions; {selector_refs} annotated selector refs; "
       f"{len(hits)} total hits", flush=True)
 if code:
