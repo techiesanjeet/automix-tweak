@@ -82,7 +82,7 @@ for start, stop, label in merged:
 status_pointer = "0x10ba450e0"
 status_hits = []
 for i, line in enumerate(lines):
-    if re.search(r"\\bname\\s+" + re.escape(status_pointer) + r"\\s+status\\s*$", line):
+    if re.search(r"^\\s*name\\s+" + re.escape(status_pointer) + r"\\s+status\\s*$", line):
         start, stop = max(0, i - 24), min(len(lines), i + 36)
         status_hits.append((start, stop, line.strip()))
 status_report = [
