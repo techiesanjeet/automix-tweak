@@ -107,7 +107,7 @@ print(f"[objc] captured {len(status_hits)} exact status-selector contexts", flus
 status_method_name_address = "0x10d2b45c0"
 method_hits = []
 for i, line in enumerate(lines):
-    if status_method_name_address in line and re.search(r"^\\s*name\\s+.*\\(", line):
+    if status_method_name_address in line and re.search(r"^\s*name\s+.*\(", line):
         start, stop = max(0, i - 30), min(len(lines), i + 5)
         method_hits.append((start, stop, line.strip()))
 method_report = [
