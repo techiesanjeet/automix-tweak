@@ -1,8 +1,9 @@
 #!/usr/bin/env python3
-"""Find direct and indirect references around the BMAudioTap enablement chain.
+"""Trace Objective-C selector references for the BMAudioTap enablement chain.
 
-Streams one complete disassembly and retains relevant references plus diagnostics.
-Static analysis only; it does not establish runtime execution.
+Objective-C IMPs are normally reached through objc_msgSend, not direct BL
+branches to the IMP address. otool -tvV annotates selector-reference loads.
+Static analysis only; references do not establish runtime execution.
 """
 import pathlib
 import re
@@ -17,99 +18,61 @@ binary = apps[0] / "Spotify"
 out = ROOT / "analysis-output"
 out.mkdir(exist_ok=True)
 
-NEEDLES = (
-    "setShouldEnableAudioTap",
+SELECTORS = (
+    "setShouldEnableAudioTap:",
     "shouldEnableAudioTap",
     "enableAudioTap:",
     "updateAudioTapForPlayerItem:",
     "createAudioTapWithPlayerItem:",
     "audioTapDidEmitOutput:",
+    "currentPlayerItemChanged:object:",
+    "itemWaitingForAudioTap",
+    "audioTapFactory",
+    "setAudioTap:",
+    "audioTap",
 )
-DIRECT_TARGETS = {
-    0x106d66ea4: "BMPlayerSource.setShouldEnableAudioTap:",
-    0x100368c30: "BMPlayerSource.shouldEnableAudioTap",
-    0x103535c00: "BMPlayerSource.enableAudioTap:",
-    0x103ad2c64: "BMPlayerSource.updateAudioTapForPlayerItem:",
-    0x101022b04: "BMBetamaxPlayerImpl.enableAudioTap:",
-    0x107208d90: "BMAudioTapFactory.createAudioTapWithPlayerItem:",
-    0x106d7af4c: "MultiPlayerAudioTap.audioTapDidEmitOutput:",
-}
-address_re = re.compile(r"^\s*((?:0x)?[0-9a-fA-F]{8,16}):")
-branch_re = re.compile(r"\bbl\s+(?:0x)?([0-9a-fA-F]{8,16})")
-blr_re = re.compile(r"\bblr\s+([wx]\d+)")
-hex_re = re.compile(r"0x([0-9a-fA-F]{8,16})")
-
-cmd = ["xcrun", "llvm-objdump", "--macho", "--disassemble", str(binary)]
-print("[audio-xrefs] streaming full Spotify disassembly", flush=True)
+address_re = re.compile(r"^\\s*([0-9a-fA-F]{8,16})\\s+(.+)$")
+cmd = ["otool", "-tvV", str(binary)]
+print("[audio-xrefs] streaming annotated otool disassembly", flush=True)
 proc = subprocess.Popen(cmd, stdout=subprocess.PIPE, stderr=subprocess.STDOUT,
                         text=True, errors="replace", bufsize=1)
-before = deque(maxlen=16)
+before = deque(maxlen=20)
 hits = []
-instructions = branches = indirect_branches = direct_matches = address_refs = name_matches = 0
-branch_samples = []
+instructions = selector_refs = 0
 try:
     for raw in proc.stdout:
         line = raw.rstrip()
-        if address_re.match(line):
+        m = address_re.match(line)
+        if m:
             instructions += 1
-        branch = branch_re.search(line)
-        indirect = blr_re.search(line)
-        if branch:
-            branches += 1
-            if len(branch_samples) < 30:
-                branch_samples.append(line)
-        if indirect:
-            indirect_branches += 1
-
-        referenced = []
-        for value in hex_re.findall(line):
-            label = DIRECT_TARGETS.get(int(value, 16))
-            if label and label not in referenced:
-                referenced.append(label)
-        matched_names = [n for n in NEEDLES if n in line]
-        direct = DIRECT_TARGETS.get(int(branch.group(1), 16)) if branch else None
-
-        if direct:
-            direct_matches += 1
-        if referenced:
-            address_refs += len(referenced)
-        if matched_names:
-            name_matches += len(matched_names)
-
-        labels = []
-        labels.extend(matched_names)
-        if direct:
-            labels.append("direct-call-target: " + direct)
-        labels.extend("address-reference: " + x for x in referenced if x != direct)
-        if labels:
-            context = list(before)
-            context.append(line)
-            hits.append((labels, context))
+        matched = [s for s in SELECTORS if s in line]
+        if "Objc selector ref:" in line and matched:
+            selector_refs += 1
+            hits.append((matched, list(before) + [line]))
+        elif matched and not m:
+            # Also retain symbol/metadata lines that expose selector strings.
+            hits.append((matched, list(before) + [line]))
         before.append(line)
-    code = proc.wait(timeout=600)
+    code = proc.wait(timeout=1200)
 except Exception:
     proc.kill()
     proc.wait()
     raise
 
 report = [
-    "BMAudioTap enablement static reference trace",
-    "Static disassembly only; a reference does not prove runtime execution.",
-    f"Parsed {instructions} instruction lines; direct BL={branches}; indirect BLR={indirect_branches};",
-    f"known direct-target matches={direct_matches}; known-address references={address_refs}; method-name matches={name_matches}; objdump exit={code}.",
-    "",
-    "===== Sample direct branch instructions (first 30) =====",
-    *branch_samples,
+    "BMAudioTap enablement Objective-C selector-reference trace",
+    "Static disassembly only; a selector reference is not proof of runtime execution.",
+    f"Parsed {instructions} instruction lines; annotated selector-reference hits={selector_refs}; "
+    f"all selector-string hits={len(hits)}; otool exit={code}.",
     "",
 ]
-for i, (labels, context) in enumerate(hits, 1):
-    report.append(f"===== Reference {i}: {', '.join(labels)} =====")
+for i, (selectors, context) in enumerate(hits, 1):
+    report.append(f"===== Selector hit {i}: {', '.join(selectors)} =====")
     report.extend(context)
     report.append("")
 path = out / "spotify-audio-tap-enablement-xrefs.txt"
-path.write_text("\n".join(report), encoding="utf-8")
-print(f"[audio-xrefs] parsed {instructions} instructions, {branches} BL, {indirect_branches} BLR, "
-      f"{direct_matches} known direct targets, {address_refs} address refs, {name_matches} name matches; "
-      f"wrote {len(hits)} references", flush=True)
+path.write_text("\\n".join(report), encoding="utf-8")
+print(f"[audio-xrefs] parsed {instructions} instructions; {selector_refs} annotated selector refs; "
+      f"{len(hits)} total hits", flush=True)
 if code:
-    raise SystemExit(f"llvm-objdump exited {code}")
+    raise SystemExit(f"otool exited {code}")
