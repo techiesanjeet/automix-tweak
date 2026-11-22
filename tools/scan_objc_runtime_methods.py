@@ -100,6 +100,31 @@ for n, (start, stop, label) in enumerate(status_hits, 1):
     "\n".join(status_report), encoding="utf-8")
 print(f"[objc] captured {len(status_hits)} exact status-selector contexts", flush=True)
 
+# In this Mach-O, method-list entries use a relative name pointer for the
+# selector string "status" (resolved by otool as 0x10d2b45c0), while ivar and
+# property metadata use the separate selector pointer above. Keep these
+# method-list hits distinct and capture their enclosing class/protocol owners.
+status_method_name_address = "0x10d2b45c0"
+method_hits = []
+for i, line in enumerate(lines):
+    if status_method_name_address in line and re.search(r"^\\s*name\\s+.*\\(", line):
+        start, stop = max(0, i - 30), min(len(lines), i + 5)
+        method_hits.append((start, stop, line.strip()))
+method_report = [
+    "Objective-C method-list entries for the status selector string",
+    f"Resolved method-name address: {status_method_name_address}",
+    f"Matching method-list entries: {len(method_hits)}",
+    "Each context includes the nearest enclosing class/protocol and method type/IMP when present.",
+    "",
+]
+for n, (start, stop, label) in enumerate(method_hits, 1):
+    method_report.append(f"===== status method entry {n} (lines {start+1}-{stop}) =====")
+    method_report.extend(lines[start:stop])
+    method_report.append("")
+(out / "spotify-status-method-list-owners.txt").write_text(
+    "\\n".join(method_report), encoding="utf-8")
+print(f"[objc] captured {len(method_hits)} status method-list entries", flush=True)
+
 (out / "spotify-objc-runtime-target-contexts.txt").write_text(
     "\n".join(report), encoding="utf-8")
 print(f"[objc] captured {len(merged)} contexts; found {len(candidate_imps)} IMP pointers",
