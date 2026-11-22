@@ -130,6 +130,21 @@ for label, binary in binaries:
             (0x109afc058, "enableAudioTap resolved helper 3"),
             (0x109b79dac, "enableAudioTap resolved helper 4"),
             (0x109afbfa0, "enableAudioTap resolved tail target"),
+            # updateAudioTapForPlayerItem direct callees. Resolve the opaque
+            # player-item fetch and lifecycle checks before the status gate.
+            (0x109afc694, "updateAudioTap current player-item fetch helper"),
+            (0x109afc72c, "updateAudioTap cleanup/helper"),
+            (0x109afc820, "updateAudioTap gate-success helper"),
+            (0x109afc588, "updateAudioTap async block setup helper"),
+            (0x109afc684, "updateAudioTap weak-reference helper"),
+            (0x109b6d1d0, "updateAudioTap current-item property getter stub"),
+            (0x109b95778, "updateAudioTap second item property getter stub"),
+            (0x109b8b044, "updateAudioTap third item property getter stub"),
+            (0x109bb133c, "updateAudioTap item-change helper stub"),
+            (0x109ba0614, "updateAudioTap observer helper stub"),
+            (0x109ba58b8, "updateAudioTap state helper stub"),
+            (0x109b6d1f4, "updateAudioTap audio-tap factory getter stub"),
+            (0x109b741f0, "updateAudioTap enqueue async operation stub"),
         ]
         existing = {start for start, _, _, _ in ranges}
         for address, description in helper_targets:
