@@ -35,7 +35,7 @@ DIRECT_TARGETS = {
     0x106d7af4c: "MultiPlayerAudioTap.audioTapDidEmitOutput:",
 }
 address_re = re.compile(r"^\s*((?:0x)?[0-9a-fA-F]{8,16}):")
-target_re = re.compile(r"\\bbl\\s+(?:0x)?([0-9a-fA-F]{8,16})")
+target_re = re.compile(r"\bbl\s+(?:0x)?([0-9a-fA-F]{8,16})")
 
 cmd = ["xcrun", "llvm-objdump", "--macho", "--disassemble", str(binary)]
 print("[audio-xrefs] streaming full Spotify disassembly", flush=True)
