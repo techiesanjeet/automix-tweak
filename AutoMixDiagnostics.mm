@@ -275,6 +275,59 @@ static BOOL AMHookInstanceMethod(Class cls, SEL selector, IMP replacement, IMP *
     return *original != NULL;
 }
 
+// Dump the concrete player-source object surface before selecting further hooks.
+// This is metadata-only: it does not invoke any private method or mutate playback.
+static void AMDumpClassSurface(Class cls) {
+    for (Class current = cls; current && current != NSObject.class; current = class_getSuperclass(current)) {
+        AMLog(@"runtime surface class=%@ superclass=%@", NSStringFromClass(current),
+              class_getSuperclass(current) ? NSStringFromClass(class_getSuperclass(current)) : @"<nil>");
+        unsigned methodCount = 0;
+        Method *methods = class_copyMethodList(current, &methodCount);
+        for (unsigned i = 0; i < methodCount; i++) {
+            SEL selector = method_getName(methods[i]);
+            NSString *name = NSStringFromSelector(selector);
+            NSString *lower = name.lowercaseString;
+            if ([lower containsString:@"item"] || [lower containsString:@"player"] ||
+                [lower containsString:@"source"] || [lower containsString:@"tap"] ||
+                [lower containsString:@"audio"]) {
+                char *types = method_copyReturnType(methods[i]);
+                AMLog(@"runtime method %@ %@ encoding=%s imp=%p", NSStringFromClass(current),
+                      name, types ?: "?", method_getImplementation(methods[i]));
+                free(types);
+            }
+        }
+        free(methods);
+
+        unsigned propertyCount = 0;
+        objc_property_t *properties = class_copyPropertyList(current, &propertyCount);
+        for (unsigned i = 0; i < propertyCount; i++) {
+            const char *name = property_getName(properties[i]);
+            const char *attrs = property_getAttributes(properties[i]);
+            NSString *lower = name ? [@(name) lowercaseString] : @"";
+            if ([lower containsString:@"item"] || [lower containsString:@"player"] ||
+                [lower containsString:@"source"] || [lower containsString:@"tap"] ||
+                [lower containsString:@"audio"])
+                AMLog(@"runtime property %@ %s attrs=%s", NSStringFromClass(current),
+                      name ?: "?", attrs ?: "?");
+        }
+        free(properties);
+
+        unsigned ivarCount = 0;
+        Ivar *ivars = class_copyIvarList(current, &ivarCount);
+        for (unsigned i = 0; i < ivarCount; i++) {
+            const char *name = ivar_getName(ivars[i]);
+            const char *type = ivar_getTypeEncoding(ivars[i]);
+            NSString *lower = name ? [@(name) lowercaseString] : @"";
+            if ([lower containsString:@"item"] || [lower containsString:@"player"] ||
+                [lower containsString:@"source"] || [lower containsString:@"tap"] ||
+                [lower containsString:@"audio"])
+                AMLog(@"runtime ivar %@ %s type=%s offset=%td", NSStringFromClass(current),
+                      name ?: "?", type ?: "?", ivar_getOffset(ivars[i]));
+        }
+        free(ivars);
+    }
+}
+
 static void AMInstallAudioTapHooks(void) {
     Class factory = objc_getClass("BMAudioTapFactory");
     Class tap = objc_getClass("BMAudioTap");
@@ -291,6 +344,8 @@ static void AMInstallAudioTapHooks(void) {
     Class betamax = objc_getClass("BMBetamaxPlayerImpl");
     Class playerSource = objc_getClass("BMPlayerSource");
     AMLog(@"audio-tap upstream classes betamax=%p playerSource=%p", betamax, playerSource);
+    AMDumpClassSurface(playerSource);
+    AMDumpClassSurface(betamax);
     AMHookInstanceMethod(betamax, @selector(enableAudioTap:),
                          (IMP)AMHookBetamaxEnableAudioTap, &gOrigBetamaxEnableAudioTap);
     AMHookInstanceMethod(playerSource, @selector(enableAudioTap:),
