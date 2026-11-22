@@ -190,23 +190,42 @@ for label, binary in binaries:
     if return_code != 0:
         errors.append(f"{label}: llvm-objdump exited {return_code}")
     if label == "Spotify":
-        # Direct bounded disassembly for gate helpers omitted by the broad
-        # symbol sweep. These two call targets decide whether tap setup runs.
-        for target, description in [
+        # Gate targets may live outside __text in executable stub sections.
+        # Mach-O start/stop bounds are unreliable, so stream all sections once
+        # and retain only the exact address windows for the two gate calls.
+        targets = [
             (0x109bad7c0, "updateAudioTap gate helper 1"),
             (0x109bb0f88, "updateAudioTap gate helper 2"),
-        ]:
-            direct = run([
-                "xcrun", "llvm-objdump", "--macho", "--disassemble",
-                f"--start-address=0x{target:x}",
-                f"--stop-address=0x{target + 0x100:x}", str(binary)
-            ], timeout=120)
+        ]
+        target_lines = {address: [] for address, _ in targets}
+        target_re = re.compile(r"(?:0x)?([0-9a-fA-F]{8,16}):")
+        target_proc = subprocess.Popen(
+            ["xcrun", "llvm-objdump", "--macho", "--disassemble-all", str(binary)],
+            stdout=subprocess.PIPE, stderr=subprocess.STDOUT,
+            text=True, errors="replace", bufsize=1)
+        try:
+            for line in target_proc.stdout:
+                match = target_re.search(line)
+                if not match:
+                    continue
+                instruction_address = int(match.group(1), 16)
+                for target, _ in targets:
+                    if target <= instruction_address < target + 0x100:
+                        target_lines[target].append(line.rstrip())
+            target_return = target_proc.wait(timeout=600)
+        except Exception:
+            target_proc.kill()
+            target_proc.wait()
+            raise
+        if target_return != 0:
+            errors.append(f"{label}: llvm-objdump --disassemble-all exited {target_return}")
+        for target, description in targets:
+            lines = target_lines[target]
             all_sections.append(
-                f"===== {label}: {description} (direct address disassembly) @ 0x{target:x} =====\\n"
-                + direct.strip())
-            if not re.search(rf"(?m)^\\s*{target:x}:", direct, re.I):
-                errors.append(
-                    f"{label}: direct disassembly produced no instruction at 0x{target:x}")
+                f"===== {label}: {description} (all-section address trace) @ 0x{target:x} =====\\n"
+                + ("\\n".join(lines) if lines else "NO INSTRUCTIONS FOUND"))
+            if not lines:
+                errors.append(f"{label}: no executable-section instructions found at 0x{target:x}")
     if not emitted:
         errors.append(f"{label}: streaming disassembly found no instructions in selected IMP ranges")
         continue
