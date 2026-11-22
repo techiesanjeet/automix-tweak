@@ -138,7 +138,7 @@ for label, binary in binaries:
     print(f"[methods] {label}: emitted {len(selected)} priority methods; "
           f"callee expansion intentionally deferred", flush=True)
 
-n\n".join(all_indexes) + "\n", encoding="utf-8")
+(out / "spotify-multiplayer-method-index.txt").write_text("\n\n".join(all_indexes) + "\n", encoding="utf-8")
 (out / "spotify-multiplayer-method-disassembly.txt").write_text(
     "\n\n".join(all_sections)[:12_000_000], encoding="utf-8")
 if errors:
