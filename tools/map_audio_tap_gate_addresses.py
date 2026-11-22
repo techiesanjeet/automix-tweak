@@ -33,6 +33,12 @@ def locate(vm):
    if all(k in sc for k in ("addr","size","offset")) and sc["addr"]<=vm<sc["addr"]+sc["size"]:
     return sc["offset"]+(vm-sc["addr"]),sg,sc
  return None
+def locate_file_offset(file_offset):
+ for sg in segments:
+  for sc in sg["sections"]:
+   if all(k in sc for k in ("addr","size","offset")) and sc["offset"]<=file_offset<sc["offset"]+sc["size"]:
+    return file_offset,sg,sc
+ return None
 report=["Spotify Mach-O audio-tap gate selector resolution",f"Binary: {binary}",f"Size: {len(data)} bytes",""]
 for address,label in targets:
  report += [f"===== {label}: 0x{address:x} ====="]
@@ -58,20 +64,22 @@ for address,label in targets:
  raw=data[ref_off:ref_off+8]
  ptr=int.from_bytes(raw,"little")
  report.append(f"SELREF {rsg['name']},{rsc['name']} file=0x{ref_off:x} raw={raw.hex(' ')} pointer=0x{ptr:x}")
- # ObjC selref pointer is a rebased VM pointer; strip only top-byte metadata if present.
- candidates=[ptr,ptr&0x00ffffffffffffff]
+ # Chained-fixup selector pointers encode the target file offset in low 32 bits.
+ candidates=[("vm",ptr),("top-byte-stripped-vm",ptr&0x00ffffffffffffff),
+             ("chained-fixup-file-offset",ptr&0xffffffff)]
  found=False
- for candidate in candidates:
-  target=locate(candidate)
+ for kind,candidate in candidates:
+  target=locate(candidate) if kind!="chained-fixup-file-offset" else locate_file_offset(candidate)
   if not target: continue
   toff,tsg,tsc=target
   if tsc["name"]!="__objc_methname": continue
-  end=data.find(b"\0",toff,min(toff+512,len(data)))
-  if end<0: end=min(toff+512,len(data))
-  value=data[toff:end].decode("utf-8","replace")
-  report.append(f"SELECTOR_STRING {tsg['name']},{tsc['name']} vm=0x{candidate:x} file=0x{toff:x}: {value}")
+  end_string=data.find(b"\\0",toff,min(toff+512,len(data)))
+  if end_string<0: end_string=min(toff+512,len(data))
+  value=data[toff:end_string].decode("utf-8","replace")
+  vm=tsc["addr"]+(toff-tsc["offset"])
+  report.append(f"SELECTOR_STRING encoding={kind} {tsg['name']},{tsc['name']} vm=0x{vm:x} file=0x{toff:x}: {value}")
   found=True; break
- if not found: report.append("Pointer did not resolve into __objc_methname; inspect raw pointer/fixups.")
+ if not found: report.append("Pointer did not resolve into __objc_methname by VM or chained-fixup file offset.")
  report.append("")
 report.append("===== Objective-C stub section inventory =====")
 for sg in segments:
