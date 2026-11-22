@@ -105,13 +105,33 @@ for label, binary in binaries:
     all_addresses = sorted(set(a for a, _ in raw))
     ranges = []
     for address, name, readable in selected:
-        pos = bisect.bisect_right(all_addresses, address)
         # Symbol tables contain local labels only a few bytes after a method
         # start; do not let those truncate the method window.
         stop = address + 0x600
         ranges.append((address, stop, name, readable))
 
-    print(f"[methods] {label}: streaming disassembly for {len(ranges)} IMP ranges", flush=True)
+    # BMBetamaxPlayerImpl -[enableAudioTap:] is a forwarding thunk. Capture
+    # its internal BL/tail-branch targets as separate address windows so the
+    # actual gate/dispatch work is not missed merely because nm has no local
+    # symbol names for these compiler-generated helpers.
+    if label == "Spotify":
+        helper_targets = [
+            (0x107c9f2c0, "enableAudioTap helper 1"),
+            (0x107ca7024, "enableAudioTap helper 2"),
+            (0x107c8ec2c, "enableAudioTap helper 3"),
+            (0x107c9b4a8, "enableAudioTap helper 4"),
+            (0x107c8ebf4, "enableAudioTap tail target"),
+            (0x109bad7c0, "updateAudioTap helper bool"),
+            (0x109bb0f88, "updateAudioTap helper constant"),
+        ]
+        existing = {start for start, _, _, _ in ranges}
+        for address, description in helper_targets:
+            if address not in existing:
+                ranges.append((address, address + 0x300, description,
+                               "compiler-generated helper target (address-derived)"))
+        ranges.sort(key=lambda item: item[0])
+
+    print(f"[methods] {label}: streaming disassembly for {len(ranges)} IMP/helper ranges", flush=True)
     proc = subprocess.Popen(
         ["xcrun", "llvm-objdump", "--macho", "--disassemble", str(binary)],
         stdout=subprocess.PIPE, stderr=subprocess.STDOUT,
