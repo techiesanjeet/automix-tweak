@@ -109,11 +109,12 @@ for label, binary in binaries:
             if not item:
                 continue
             address, readable = item
-            next_addresses = [a for a in sorted_addresses if a > address]
-            # Bound each window to the next known symbol, with a conservative
-            # maximum to avoid dumping unrelated neighboring functions.
-            stop = min(next_addresses[0] if next_addresses else address + 0x400,
-                       address + 0x800)
+            # O(log n) lookup: scanning ~200k addresses for every IMP made this
+            # stage quadratic and caused the macOS runner to be killed.
+            pos = bisect.bisect_right(sorted_addresses, address)
+            next_address = sorted_addresses[pos] if pos < len(sorted_addresses) else address + 0x400
+            # Keep each IMP window small and bounded.
+            stop = min(next_address, address + 0x600)
             output = run(["xcrun", "llvm-objdump", "--macho", "--disassemble",
                           f"--start-address=0x{address:x}",
                           f"--stop-address=0x{stop:x}", str(binary)], timeout=120)
@@ -131,44 +132,13 @@ for label, binary in binaries:
         continue
     all_sections.append(f"===== {label}: priority audio-tap lifecycle methods =====\\n{first}")
 
-    # Follow direct calls through a bounded number of named helper symbols.
-    known_addresses = set(symbol_by_address)
-    selected_set = set(selected)
-    frontier = []
-    for line in first.splitlines():
-        bm = re.search(r"\bbl\s+(?:0x)?([0-9a-fA-F]{8,16})", line)
-        if bm:
-            address = int(bm.group(1), 16)
-            if address in known_addresses:
-                name = symbol_by_address[address]
-                if name not in selected_set and name not in frontier:
-                    frontier.append(name)
-    for level in (2, 3):
-        frontier = [n for n in frontier if n not in selected_set][:80]
-        if not frontier:
-            break
-        helper_output = disassemble_symbols(frontier)
-        if not helper_output.strip():
-            errors.append(f"{label}: no output for level-{level} named callees")
-            break
-        all_sections.append(
-            f"===== {label}: level-{level} named callees =====\\n{helper_output}")
-        selected_set.update(frontier)
-        next_frontier = []
-        for line in helper_output.splitlines():
-            bm = re.search(r"\bbl\s+(?:0x)?([0-9a-fA-F]{8,16})", line)
-            if bm:
-                address = int(bm.group(1), 16)
-                if address in known_addresses:
-                    name = symbol_by_address[address]
-                    if name not in selected_set and name not in next_frontier:
-                        next_frontier.append(name)
-        frontier = next_frontier
-    print(f"[methods] {label}: emitted {len(selected)} priority methods and "
-          f"{len(selected_set)-len(selected)} bounded callees", flush=True)
+    # Do not recursively disassemble callees here. llvm-objdump reparses
+    # the Mach-O image for every range; expanding up to 80 helpers per level
+    # multiplied that expensive work until CI exhausted memory/time.
+    print(f"[methods] {label}: emitted {len(selected)} priority methods; "
+          f"callee expansion intentionally deferred", flush=True)
 
-(out / "spotify-multiplayer-method-index.txt").write_text(
-    "\n\n".join(all_indexes) + "\n", encoding="utf-8")
+n\n".join(all_indexes) + "\n", encoding="utf-8")
 (out / "spotify-multiplayer-method-disassembly.txt").write_text(
     "\n\n".join(all_sections)[:12_000_000], encoding="utf-8")
 if errors:
