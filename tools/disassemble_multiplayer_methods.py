@@ -157,11 +157,19 @@ for label, binary in binaries:
                 continue
             parsed_addresses += 1
             instruction_address = int(match.group(1), 16)
+            # Helper windows frequently overlap named IMP windows (and each
+            # other). Retain an instruction in every matching window rather
+            # than assigning it only to the nearest preceding start; otherwise
+            # later helper starts silently receive no instructions.
             idx = bisect.bisect_right(range_starts, instruction_address) - 1
-            if idx >= 0:
+            while idx >= 0:
                 begin, stop, name, readable = ranges[idx]
-                if begin <= instruction_address < stop:
-                    captured[begin].append(line.rstrip())
+                if instruction_address < stop:
+                    if begin <= instruction_address:
+                        captured[begin].append(line.rstrip())
+                    idx -= 1
+                else:
+                    break
         return_code = proc.wait(timeout=600)
     except Exception:
         proc.kill()
