@@ -75,6 +75,31 @@ for start, stop, label in merged:
     report.append(joined)
     report.append("")
 
+# The audio-tap gate sends the generic Objective-C selector "status" to
+# the current player-item object and requires the returned integer to equal 1.
+# Capture every runtime-metadata context for this exact selector pointer so
+# we can identify candidate owning classes instead of guessing from its name.
+status_pointer = "0x10ba450e0"
+status_hits = []
+for i, line in enumerate(lines):
+    if re.search(r"\\bname\\s+" + re.escape(status_pointer) + r"\\s+status\\s*$", line):
+        start, stop = max(0, i - 24), min(len(lines), i + 36)
+        status_hits.append((start, stop, line.strip()))
+status_report = [
+    "Exact Objective-C selector metadata contexts for status",
+    f"Selector pointer: {status_pointer}",
+    "The callsite applies this selector to the player-item argument; class ownership remains to be confirmed.",
+    f"Matching metadata entries: {len(status_hits)}",
+    "",
+]
+for n, (start, stop, label) in enumerate(status_hits, 1):
+    status_report.append(f"===== status metadata hit {n} (lines {start+1}-{stop}) =====")
+    status_report.extend(lines[start:stop])
+    status_report.append("")
+(out / "spotify-status-selector-contexts.txt").write_text(
+    "\\n".join(status_report), encoding="utf-8")
+print(f"[objc] captured {len(status_hits)} exact status-selector contexts", flush=True)
+
 (out / "spotify-objc-runtime-target-contexts.txt").write_text(
     "\n".join(report), encoding="utf-8")
 print(f"[objc] captured {len(merged)} contexts; found {len(candidate_imps)} IMP pointers",
