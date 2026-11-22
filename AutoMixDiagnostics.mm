@@ -151,6 +151,8 @@ static IMP gOrigBetamaxEnableAudioTap;
 static IMP gOrigPlayerSourceEnableAudioTap;
 static IMP gOrigPlayerSourceSetShouldEnableAudioTap;
 static IMP gOrigPlayerSourceShouldEnableAudioTap;
+static IMP gOrigPlayerSourceUpdateAudioTapForPlayerItem;
+static IMP gOrigPlayerSourceSetItemWaitingForAudioTap;
 
 static IMP gOrigTapInit;
 static IMP gOrigTapIsEnabled;
@@ -239,6 +241,27 @@ static BOOL AMHookPlayerSourceShouldEnableAudioTap(id self, SEL cmd) {
     return enabled;
 }
 
+static void AMHookPlayerSourceUpdateAudioTapForPlayerItem(id self, SEL cmd, id item) {
+    NSString *itemClass = item ? NSStringFromClass([item class]) : @"<nil>";
+    NSString *statusText = @"<not AVPlayerItem>";
+    if ([item isKindOfClass:AVPlayerItem.class]) {
+        AVPlayerItemStatus status = ((AVPlayerItem *)item).status;
+        statusText = [NSString stringWithFormat:@"%ld (%@)", (long)status,
+            status == AVPlayerItemStatusUnknown ? @"unknown" :
+            status == AVPlayerItemStatusReadyToPlay ? @"readyToPlay" :
+            status == AVPlayerItemStatusFailed ? @"failed" : @"other"];
+    }
+    AMLog(@"BMPlayerSource updateAudioTapForPlayerItem self=%p item=%p class=%@ status=%@",
+          self, item, itemClass, statusText);
+    ((void (*)(id, SEL, id))gOrigPlayerSourceUpdateAudioTapForPlayerItem)(self, cmd, item);
+}
+
+static void AMHookPlayerSourceSetItemWaitingForAudioTap(id self, SEL cmd, id item) {
+    AMLog(@"BMPlayerSource setItemWaitingForAudioTap self=%p item=%p class=%@",
+          self, item, item ? NSStringFromClass([item class]) : @"<nil>");
+    ((void (*)(id, SEL, id))gOrigPlayerSourceSetItemWaitingForAudioTap)(self, cmd, item);
+}
+
 static BOOL AMHookInstanceMethod(Class cls, SEL selector, IMP replacement, IMP *original) {
     if (!cls) return NO;
     Method method = class_getInstanceMethod(cls, selector);
@@ -276,6 +299,10 @@ static void AMInstallAudioTapHooks(void) {
                          (IMP)AMHookPlayerSourceSetShouldEnableAudioTap, &gOrigPlayerSourceSetShouldEnableAudioTap);
     AMHookInstanceMethod(playerSource, @selector(shouldEnableAudioTap),
                          (IMP)AMHookPlayerSourceShouldEnableAudioTap, &gOrigPlayerSourceShouldEnableAudioTap);
+    AMHookInstanceMethod(playerSource, @selector(updateAudioTapForPlayerItem:),
+                         (IMP)AMHookPlayerSourceUpdateAudioTapForPlayerItem, &gOrigPlayerSourceUpdateAudioTapForPlayerItem);
+    AMHookInstanceMethod(playerSource, @selector(setItemWaitingForAudioTap:),
+                         (IMP)AMHookPlayerSourceSetItemWaitingForAudioTap, &gOrigPlayerSourceSetItemWaitingForAudioTap);
     AMHookInstanceMethod(tap, @selector(initWithPlayerItem:appStateObservable:delegate:),
                          (IMP)AMHookTapInit, &gOrigTapInit);
     AMHookInstanceMethod(tap, @selector(isEnabled), (IMP)AMHookTapIsEnabled, &gOrigTapIsEnabled);
