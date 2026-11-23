@@ -2,18 +2,18 @@
 AutoMix diagnostics loaded; observation only; no private playback methods are called.
 --- snapshot: dylib load ---
 bundle=com.s.z version=9.1.90 build=919002269
-symbol SGAutoMixSupportedVersion: FOUND 0x1120bb1ac
-symbol SGAutoMixEnabled: FOUND 0x1120bb204
-symbol SGAutoMixUsesBeatMatching: FOUND 0x1120bb214
-symbol SGAutoMixBlendSeconds: FOUND 0x1120bb23c
-symbol SGAutoMixPlayerAvailable: FOUND 0x1120bc29c
-symbol SGAutoMixApplyCurrentPlayback: FOUND 0x1120bc340
-symbol SGAutoMixPlayerStateChanged: FOUND 0x1120bd1a8
-symbol SGAutoMixSettingsChanged: FOUND 0x1120bd544
-symbol SGAutoMixStatus: FOUND 0x1120bd590
-symbol SGAutoMixLastTransition: FOUND 0x1120bd5b8
-symbol SGAutoMixHasTransition: FOUND 0x1120bb564
-symbol SGAutoMixConfiguration: FOUND 0x1120bba2c
+symbol SGAutoMixSupportedVersion: FOUND 0x11000f1ac
+symbol SGAutoMixEnabled: FOUND 0x11000f204
+symbol SGAutoMixUsesBeatMatching: FOUND 0x11000f214
+symbol SGAutoMixBlendSeconds: FOUND 0x11000f23c
+symbol SGAutoMixPlayerAvailable: FOUND 0x11001029c
+symbol SGAutoMixApplyCurrentPlayback: FOUND 0x110010340
+symbol SGAutoMixPlayerStateChanged: FOUND 0x1100111a8
+symbol SGAutoMixSettingsChanged: FOUND 0x110011544
+symbol SGAutoMixStatus: FOUND 0x110011590
+symbol SGAutoMixLastTransition: FOUND 0x1100115b8
+symbol SGAutoMixHasTransition: FOUND 0x11000f564
+symbol SGAutoMixConfiguration: FOUND 0x11000fa2c
 defaults[spotifyglass.automix]=<unset>
 defaults[spotifyglass.automix.savedPreferences]=<unset>
 defaults[spotifyglass.automix.style]=<unset>
@@ -23,75 +23,75 @@ defaults[audioCrossfade]=<unset>
 defaults[audioCrossfadeTime]=<unset>
 audioSession category=AVAudioSessionCategorySoloAmbient mode=AVAudioSessionModeDefault sampleRate=48000.0 outputLatency=0.0154
 audioOutput=Speaker type=Speaker
-notification=UIApplicationDidBecomeActiveNotification object=<MusicApp_ContainerWiring.SpotifyUIApplication: 0x1128060b0> userInfo={
+notification=UIApplicationDidBecomeActiveNotification object=<MusicApp_ContainerWiring.SpotifyUIApplication: 0x110c2ad50> userInfo={
 }
-audio-tap classes factory=0x11001bd38 tap=0x11001bce8 multiTap=0x10ff5a478
-audio-tap hook installed class=BMAudioTapFactory selector=createAudioTapWithPlayerItem:completion: original=0x109d74d90 replacement=0x1112f3598
-audio-tap hook installed class=BMAudioTapFactory selector=initWithAudioTapDelegate:appStateObservable: original=0x104267ee8 replacement=0x1112f3794
-audio-tap hook installed class=BMAudioTap selector=audioTap original=0x109ff4db8 replacement=0x1112f3934
-audio-tap upstream classes betamax=0x11001be28 playerSource=0x11001c328
+audio-tap classes factory=0x10dfb7d38 tap=0x10dfb7ce8 multiTap=0x10def6478
+audio-tap hook installed class=BMAudioTapFactory selector=createAudioTapWithPlayerItem:completion: original=0x107d10d90 replacement=0x10f28f638
+audio-tap hook installed class=BMAudioTapFactory selector=initWithAudioTapDelegate:appStateObservable: original=0x102203ee8 replacement=0x10f28f834
+audio-tap hook installed class=BMAudioTap selector=audioTap original=0x107f90db8 replacement=0x10f28f9d4
+audio-tap upstream classes betamax=0x10dfb7e28 playerSource=0x10dfb8328
 runtime surface class=BMPlayerSource superclass=NSObject
-runtime method BMPlayerSource initWithPlayerConfiguration:itemContainerFactory:avFactory:kvoControllerFactory:playerItemObservableFactory:playerTrackSelectorFactory:metadataTypesProvider:audioTapFactory:notificationCenter: return=@ types=@88@0:8@16@24@32@40@48@56@64@72@80 imp=0x10883c468
-runtime method BMPlayerSource startObservingPlayerPosition return=v types=v16@0:8 imp=0x10ad7df5c
-runtime method BMPlayerSource recreatePlayer return=v types=v16@0:8 imp=0x1052f2b88
-runtime method BMPlayerSource playerStatusChanged return=v types=v16@0:8 imp=0x106afac00
-runtime method BMPlayerSource playerItem return=@ types=@16@0:8 imp=0x105432e4c
-runtime method BMPlayerSource loadPlayerItem return=v types=v16@0:8 imp=0x1061adee8
-runtime method BMPlayerSource currentPlayerItemChanged:object: return=v types=v32@0:8@16@24 imp=0x103053690
-runtime method BMPlayerSource didChangePlayerItemStatus:playerItem: return=v types=v32@0:8@16@24 imp=0x1051a367c
-runtime method BMPlayerSource didChangePlayerItemDuration:playerItem: return=v types=v32@0:8@16@24 imp=0x109d52a34
-runtime method BMPlayerSource playerItemDidPlayToEndTime: return=v types=v24@0:8@16 imp=0x1049de1f8
-runtime method BMPlayerSource playerItemFailedToPlayToEndTime:withError: return=v types=v32@0:8@16@24 imp=0x108c75104
-runtime method BMPlayerSource playerItemNewErrorLogEntry: return=v types=v24@0:8@16 imp=0x10a078c34
-runtime method BMPlayerSource playerItemNewAccessLogEntry: return=v types=v24@0:8@16 imp=0x10abd047c
-runtime method BMPlayerSource logAccessLogEntryForPlayerItem: return=v types=v24@0:8@16 imp=0x109e09660
-runtime method BMPlayerSource loadSubtitlesAsynchronouslyWithPlayerItem: return=v types=v24@0:8@16 imp=0x10495bf6c
-runtime method BMPlayerSource setPreferredAudioLanguage: return=v types=v24@0:8@16 imp=0x108d21ae8
-runtime method BMPlayerSource refreshAudioTrackForPlayerItem: return=v types=v24@0:8@16 imp=0x107ab4244
-runtime method BMPlayerSource applyAudioFadeInWithDuration:playerItem: return=v types=v32@0:8d16@24 imp=0x107d855e8
-runtime method BMPlayerSource isAudioDisabled return=B types=B16@0:8 imp=0x109183b20
-runtime method BMPlayerSource setAudioDisabled: return=v types=v20@0:8B16 imp=0x104ec7568
-runtime method BMPlayerSource setAudioRenderingState: return=v types=v24@0:8q16 imp=0x1098fe0bc
-runtime method BMPlayerSource enableAudioTap: return=v types=v20@0:8B16 imp=0x1060a1c00
-runtime method BMPlayerSource setupAudioFadeInForPlayerItem: return=v types=v24@0:8@16 imp=0x10538f840
-runtime method BMPlayerSource updateAudioTapForPlayerItem: return=v types=v24@0:8@16 imp=0x10663ec64
-runtime method BMPlayerSource setMaxResolutionForPlayerItem: return=v types=v24@0:8@16 imp=0x10aeb23d8
-runtime method BMPlayerSource setSpatialAudioForPlayerItem: return=v types=v24@0:8@16 imp=0x107645d20
-runtime method BMPlayerSource setBufferDurationForPlayerItem: return=v types=v24@0:8@16 imp=0x1068d5cfc
-runtime method BMPlayerSource setItemContainer: return=v types=v24@0:8@16 imp=0x10a6b3de4
-runtime method BMPlayerSource shouldEnableAudioTap return=B types=B16@0:8 imp=0x102ed4c30
-runtime method BMPlayerSource setShouldEnableAudioTap: return=v types=v20@0:8B16 imp=0x1098d2ea4
-runtime method BMPlayerSource playerConfiguration return=@ types=@16@0:8 imp=0x1085c1b54
-runtime method BMPlayerSource setPlayerConfiguration: return=v types=v24@0:8@16 imp=0x1094acf04
-runtime method BMPlayerSource audioTapFactory return=@ types=@16@0:8 imp=0x107cb9254
-runtime method BMPlayerSource setAudioTapFactory: return=v types=v24@0:8@16 imp=0x105d616c8
-runtime method BMPlayerSource player return=@ types=@16@0:8 imp=0x10399606c
-runtime method BMPlayerSource setPlayer: return=v types=v24@0:8@16 imp=0x1038976fc
-runtime method BMPlayerSource audioRenderingState return=q types=q16@0:8 imp=0x10779d720
-runtime method BMPlayerSource preferredAudioLanguage return=@ types=@16@0:8 imp=0x1046bc9c0
-runtime method BMPlayerSource itemContainerFactory return=@ types=@16@0:8 imp=0x1057fc178
-runtime method BMPlayerSource setItemContainerFactory: return=v types=v24@0:8@16 imp=0x10394a3dc
-runtime method BMPlayerSource playerItemObservableFactory return=@ types=@16@0:8 imp=0x10829bde8
-runtime method BMPlayerSource setPlayerItemObservableFactory: return=v types=v24@0:8@16 imp=0x10777b388
-runtime method BMPlayerSource itemContainer return=@ types=@16@0:8 imp=0x107664014
-runtime method BMPlayerSource audioTap return=@ types=@16@0:8 imp=0x1081c8af0
-runtime method BMPlayerSource setAudioTap: return=v types=v24@0:8@16 imp=0x107f7c954
-runtime method BMPlayerSource playerPositionQueue return=@ types=@16@0:8 imp=0x1089c62c8
-runtime method BMPlayerSource setPlayerPositionQueue: return=v types=v24@0:8@16 imp=0x103ff3ed4
-runtime method BMPlayerSource playerItemObservable return=@ types=@16@0:8 imp=0x10a012db8
-runtime method BMPlayerSource setPlayerItemObservable: return=v types=v24@0:8@16 imp=0x102fef618
-runtime method BMPlayerSource playerTrackSelectorFactory return=@ types=@16@0:8 imp=0x1072b0ac4
-runtime method BMPlayerSource setPlayerTrackSelectorFactory: return=v types=v24@0:8@16 imp=0x10afc3e7c
-runtime method BMPlayerSource playerTrackSelector return=@ types=@16@0:8 imp=0x107ae21ec
-runtime method BMPlayerSource setPlayerTrackSelector: return=v types=v24@0:8@16 imp=0x103ebe2b0
-runtime method BMPlayerSource audioFadeInDuration return=d types=d16@0:8 imp=0x10a2d60e4
-runtime method BMPlayerSource setAudioFadeInDuration: return=v types=v24@0:8d16 imp=0x105e9d138
-runtime method BMPlayerSource didApplyFadeInForCurrentItem return=B types=B16@0:8 imp=0x10a3d0e38
-runtime method BMPlayerSource setDidApplyFadeInForCurrentItem: return=v types=v20@0:8B16 imp=0x106afec7c
-runtime method BMPlayerSource playerPositionObserverCancellationToken return=@ types=@16@0:8 imp=0x103b5dda0
-runtime method BMPlayerSource setPlayerPositionObserverCancellationToken: return=v types=v24@0:8@16 imp=0x10626ba48
-runtime method BMPlayerSource itemWaitingForAudioTap return=@ types=@16@0:8 imp=0x1030d3d48
-runtime method BMPlayerSource setItemWaitingForAudioTap: return=v types=v24@0:8@16 imp=0x10663b6d4
+runtime method BMPlayerSource initWithPlayerConfiguration:itemContainerFactory:avFactory:kvoControllerFactory:playerItemObservableFactory:playerTrackSelectorFactory:metadataTypesProvider:audioTapFactory:notificationCenter: return=@ types=@88@0:8@16@24@32@40@48@56@64@72@80 imp=0x1067d8468
+runtime method BMPlayerSource startObservingPlayerPosition return=v types=v16@0:8 imp=0x108d19f5c
+runtime method BMPlayerSource recreatePlayer return=v types=v16@0:8 imp=0x10328eb88
+runtime method BMPlayerSource playerStatusChanged return=v types=v16@0:8 imp=0x104a96c00
+runtime method BMPlayerSource playerItem return=@ types=@16@0:8 imp=0x1033cee4c
+runtime method BMPlayerSource loadPlayerItem return=v types=v16@0:8 imp=0x104149ee8
+runtime method BMPlayerSource currentPlayerItemChanged:object: return=v types=v32@0:8@16@24 imp=0x100fef690
+runtime method BMPlayerSource didChangePlayerItemStatus:playerItem: return=v types=v32@0:8@16@24 imp=0x10313f67c
+runtime method BMPlayerSource didChangePlayerItemDuration:playerItem: return=v types=v32@0:8@16@24 imp=0x107ceea34
+runtime method BMPlayerSource playerItemDidPlayToEndTime: return=v types=v24@0:8@16 imp=0x10297a1f8
+runtime method BMPlayerSource playerItemFailedToPlayToEndTime:withError: return=v types=v32@0:8@16@24 imp=0x106c11104
+runtime method BMPlayerSource playerItemNewErrorLogEntry: return=v types=v24@0:8@16 imp=0x108014c34
+runtime method BMPlayerSource playerItemNewAccessLogEntry: return=v types=v24@0:8@16 imp=0x108b6c47c
+runtime method BMPlayerSource logAccessLogEntryForPlayerItem: return=v types=v24@0:8@16 imp=0x107da5660
+runtime method BMPlayerSource loadSubtitlesAsynchronouslyWithPlayerItem: return=v types=v24@0:8@16 imp=0x1028f7f6c
+runtime method BMPlayerSource setPreferredAudioLanguage: return=v types=v24@0:8@16 imp=0x106cbdae8
+runtime method BMPlayerSource refreshAudioTrackForPlayerItem: return=v types=v24@0:8@16 imp=0x105a50244
+runtime method BMPlayerSource applyAudioFadeInWithDuration:playerItem: return=v types=v32@0:8d16@24 imp=0x105d215e8
+runtime method BMPlayerSource isAudioDisabled return=B types=B16@0:8 imp=0x10711fb20
+runtime method BMPlayerSource setAudioDisabled: return=v types=v20@0:8B16 imp=0x102e63568
+runtime method BMPlayerSource setAudioRenderingState: return=v types=v24@0:8q16 imp=0x10789a0bc
+runtime method BMPlayerSource enableAudioTap: return=v types=v20@0:8B16 imp=0x10403dc00
+runtime method BMPlayerSource setupAudioFadeInForPlayerItem: return=v types=v24@0:8@16 imp=0x10332b840
+runtime method BMPlayerSource updateAudioTapForPlayerItem: return=v types=v24@0:8@16 imp=0x1045dac64
+runtime method BMPlayerSource setMaxResolutionForPlayerItem: return=v types=v24@0:8@16 imp=0x108e4e3d8
+runtime method BMPlayerSource setSpatialAudioForPlayerItem: return=v types=v24@0:8@16 imp=0x1055e1d20
+runtime method BMPlayerSource setBufferDurationForPlayerItem: return=v types=v24@0:8@16 imp=0x104871cfc
+runtime method BMPlayerSource setItemContainer: return=v types=v24@0:8@16 imp=0x10864fde4
+runtime method BMPlayerSource shouldEnableAudioTap return=B types=B16@0:8 imp=0x100e70c30
+runtime method BMPlayerSource setShouldEnableAudioTap: return=v types=v20@0:8B16 imp=0x10786eea4
+runtime method BMPlayerSource playerConfiguration return=@ types=@16@0:8 imp=0x10655db54
+runtime method BMPlayerSource setPlayerConfiguration: return=v types=v24@0:8@16 imp=0x107448f04
+runtime method BMPlayerSource audioTapFactory return=@ types=@16@0:8 imp=0x105c55254
+runtime method BMPlayerSource setAudioTapFactory: return=v types=v24@0:8@16 imp=0x103cfd6c8
+runtime method BMPlayerSource player return=@ types=@16@0:8 imp=0x10193206c
+runtime method BMPlayerSource setPlayer: return=v types=v24@0:8@16 imp=0x1018336fc
+runtime method BMPlayerSource audioRenderingState return=q types=q16@0:8 imp=0x105739720
+runtime method BMPlayerSource preferredAudioLanguage return=@ types=@16@0:8 imp=0x1026589c0
+runtime method BMPlayerSource itemContainerFactory return=@ types=@16@0:8 imp=0x103798178
+runtime method BMPlayerSource setItemContainerFactory: return=v types=v24@0:8@16 imp=0x1018e63dc
+runtime method BMPlayerSource playerItemObservableFactory return=@ types=@16@0:8 imp=0x106237de8
+runtime method BMPlayerSource setPlayerItemObservableFactory: return=v types=v24@0:8@16 imp=0x105717388
+runtime method BMPlayerSource itemContainer return=@ types=@16@0:8 imp=0x105600014
+runtime method BMPlayerSource audioTap return=@ types=@16@0:8 imp=0x106164af0
+runtime method BMPlayerSource setAudioTap: return=v types=v24@0:8@16 imp=0x105f18954
+runtime method BMPlayerSource playerPositionQueue return=@ types=@16@0:8 imp=0x1069622c8
+runtime method BMPlayerSource setPlayerPositionQueue: return=v types=v24@0:8@16 imp=0x101f8fed4
+runtime method BMPlayerSource playerItemObservable return=@ types=@16@0:8 imp=0x107faedb8
+runtime method BMPlayerSource setPlayerItemObservable: return=v types=v24@0:8@16 imp=0x100f8b618
+runtime method BMPlayerSource playerTrackSelectorFactory return=@ types=@16@0:8 imp=0x10524cac4
+runtime method BMPlayerSource setPlayerTrackSelectorFactory: return=v types=v24@0:8@16 imp=0x108f5fe7c
+runtime method BMPlayerSource playerTrackSelector return=@ types=@16@0:8 imp=0x105a7e1ec
+runtime method BMPlayerSource setPlayerTrackSelector: return=v types=v24@0:8@16 imp=0x101e5a2b0
+runtime method BMPlayerSource audioFadeInDuration return=d types=d16@0:8 imp=0x1082720e4
+runtime method BMPlayerSource setAudioFadeInDuration: return=v types=v24@0:8d16 imp=0x103e39138
+runtime method BMPlayerSource didApplyFadeInForCurrentItem return=B types=B16@0:8 imp=0x10836ce38
+runtime method BMPlayerSource setDidApplyFadeInForCurrentItem: return=v types=v20@0:8B16 imp=0x104a9ac7c
+runtime method BMPlayerSource playerPositionObserverCancellationToken return=@ types=@16@0:8 imp=0x101af9da0
+runtime method BMPlayerSource setPlayerPositionObserverCancellationToken: return=v types=v24@0:8@16 imp=0x104207a48
+runtime method BMPlayerSource itemWaitingForAudioTap return=@ types=@16@0:8 imp=0x10106fd48
+runtime method BMPlayerSource setItemWaitingForAudioTap: return=v types=v24@0:8@16 imp=0x1045d76d4
 runtime property BMPlayerSource itemContainerFactory attrs=T@"BMPlayerSourceItemContainerFactory",&,N,V_itemContainerFactory
 runtime property BMPlayerSource playerConfiguration attrs=T@"<BMPlayerConfiguration>",&,N,V_playerConfiguration
 runtime property BMPlayerSource playerItemObservableFactory attrs=T@"BMPlayerItemNotificationObservableFactory",&,N,V_playerItemObservableFactory
@@ -130,21 +130,21 @@ runtime ivar BMPlayerSource _audioFadeInDuration type=d offset=232
 runtime ivar BMPlayerSource _playerPositionObserverCancellationToken type=@ offset=240
 runtime ivar BMPlayerSource _itemWaitingForAudioTap type=@"AVPlayerItem" offset=248
 runtime surface class=BMBetamaxPlayerImpl superclass=NSObject
-runtime method BMBetamaxPlayerImpl initWithPlaybackSessionFactory:playerSource:surfaceManager:playbackIdentityFactory:applicationStateObservable:audioSessionObservable:displayViewProvider:audioTapDelegate:seekPanelFactory: return=@ types=@88@0:8@16@24@32@40@48@56@64@72@80 imp=0x10683370c
-runtime method BMBetamaxPlayerImpl setIsAudioDisabled: return=v types=v20@0:8B16 imp=0x10adc050c
-runtime method BMBetamaxPlayerImpl isAudioDisabled return=B types=B16@0:8 imp=0x106444f38
-runtime method BMBetamaxPlayerImpl setAudioRenderingState: return=v types=v24@0:8q16 imp=0x108189f6c
-runtime method BMBetamaxPlayerImpl audioRenderingState return=q types=q16@0:8 imp=0x1084765d8
-runtime method BMBetamaxPlayerImpl enableAudioTap: return=v types=v20@0:8B16 imp=0x103b8eb04
-runtime method BMBetamaxPlayerImpl setPreferredAudioLanguage: return=v types=v24@0:8@16 imp=0x1045fde40
-runtime method BMBetamaxPlayerImpl preferredAudioLanguage return=@ types=@16@0:8 imp=0x108939e48
-runtime method BMBetamaxPlayerImpl audioSessionInterruptionBegan return=v types=v16@0:8 imp=0x10410bbd4
-runtime method BMBetamaxPlayerImpl audioSessionInterruptionEnded return=v types=v16@0:8 imp=0x10af3bf24
-runtime method BMBetamaxPlayerImpl playerSource return=@ types=@16@0:8 imp=0x10555da60
-runtime method BMBetamaxPlayerImpl setPlayerSource: return=v types=v24@0:8@16 imp=0x10927a644
-runtime method BMBetamaxPlayerImpl setApplicationStateObservable: return=v types=v24@0:8@16 imp=0x10a342314
-runtime method BMBetamaxPlayerImpl audioSessionObservable return=@ types=@16@0:8 imp=0x10b14c980
-runtime method BMBetamaxPlayerImpl setAudioSessionObservable: return=v types=v24@0:8@16 imp=0x1036e98bc
+runtime method BMBetamaxPlayerImpl initWithPlaybackSessionFactory:playerSource:surfaceManager:playbackIdentityFactory:applicationStateObservable:audioSessionObservable:displayViewProvider:audioTapDelegate:seekPanelFactory: return=@ types=@88@0:8@16@24@32@40@48@56@64@72@80 imp=0x1047cf70c
+runtime method BMBetamaxPlayerImpl setIsAudioDisabled: return=v types=v20@0:8B16 imp=0x108d5c50c
+runtime method BMBetamaxPlayerImpl isAudioDisabled return=B types=B16@0:8 imp=0x1043e0f38
+runtime method BMBetamaxPlayerImpl setAudioRenderingState: return=v types=v24@0:8q16 imp=0x106125f6c
+runtime method BMBetamaxPlayerImpl audioRenderingState return=q types=q16@0:8 imp=0x1064125d8
+runtime method BMBetamaxPlayerImpl enableAudioTap: return=v types=v20@0:8B16 imp=0x101b2ab04
+runtime method BMBetamaxPlayerImpl setPreferredAudioLanguage: return=v types=v24@0:8@16 imp=0x102599e40
+runtime method BMBetamaxPlayerImpl preferredAudioLanguage return=@ types=@16@0:8 imp=0x1068d5e48
+runtime method BMBetamaxPlayerImpl audioSessionInterruptionBegan return=v types=v16@0:8 imp=0x1020a7bd4
+runtime method BMBetamaxPlayerImpl audioSessionInterruptionEnded return=v types=v16@0:8 imp=0x108ed7f24
+runtime method BMBetamaxPlayerImpl playerSource return=@ types=@16@0:8 imp=0x1034f9a60
+runtime method BMBetamaxPlayerImpl setPlayerSource: return=v types=v24@0:8@16 imp=0x107216644
+runtime method BMBetamaxPlayerImpl setApplicationStateObservable: return=v types=v24@0:8@16 imp=0x1082de314
+runtime method BMBetamaxPlayerImpl audioSessionObservable return=@ types=@16@0:8 imp=0x1090e8980
+runtime method BMBetamaxPlayerImpl setAudioSessionObservable: return=v types=v24@0:8@16 imp=0x1016858bc
 runtime property BMBetamaxPlayerImpl playerSource attrs=T@"BMPlayerSource",&,N,V_playerSource
 runtime property BMBetamaxPlayerImpl audioSessionObservable attrs=T@"<BMAudioSessionInterruptionObservable>",&,N,V_audioSessionObservable
 runtime property BMBetamaxPlayerImpl isAudioDisabled attrs=TB,N
@@ -152,32 +152,37 @@ runtime property BMBetamaxPlayerImpl audioRenderingState attrs=Tq,N
 runtime property BMBetamaxPlayerImpl preferredAudioLanguage attrs=T@"NSString",C,N
 runtime ivar BMBetamaxPlayerImpl _playerSource type=@"BMPlayerSource" offset=24
 runtime ivar BMBetamaxPlayerImpl _audioSessionObservable type=@"<BMAudioSessionInterruptionObservable>" offset=56
-audio-tap hook installed class=BMBetamaxPlayerImpl selector=enableAudioTap: original=0x103b8eb04 replacement=0x1112f46d4
-audio-tap hook installed class=BMPlayerSource selector=enableAudioTap: original=0x1060a1c00 replacement=0x1112f4794
-audio-tap hook installed class=BMPlayerSource selector=setShouldEnableAudioTap: original=0x1098d2ea4 replacement=0x1112f4854
-audio-tap hook installed class=BMPlayerSource selector=shouldEnableAudioTap original=0x102ed4c30 replacement=0x1112f4914
-audio-tap hook installed class=BMPlayerSource selector=updateAudioTapForPlayerItem: original=0x10663ec64 replacement=0x1112f49dc
-audio-tap hook installed class=BMPlayerSource selector=setItemWaitingForAudioTap: original=0x10663b6d4 replacement=0x1112f4d10
-audio-tap hook installed class=BMPlayerSource selector=playerItem original=0x105432e4c replacement=0x1112f4ed4
-audio-tap hook installed class=BMPlayerSource selector=loadPlayerItem original=0x1061adee8 replacement=0x1112f51b4
-audio-tap hook installed class=BMAudioTap selector=initWithPlayerItem:appStateObservable:delegate: original=0x10a1633d4 replacement=0x1112f5270
-audio-tap hook installed class=BMAudioTap selector=isEnabled original=0x107cb28ac replacement=0x1112f5530
-audio-tap hook installed class=BMAudioTap selector=stopProcessing original=0x10988a0a8 replacement=0x1112f55f8
-audio-tap hook installed class=MultiPlayer_PlayerImpl.MultiPlayerAudioTap selector=audioTapDidEmitOutput: original=0x1098e6f4c replacement=0x1112f5698
+audio-tap hook installed class=BMBetamaxPlayerImpl selector=enableAudioTap: original=0x101b2ab04 replacement=0x10f290774
+audio-tap hook installed class=BMPlayerSource selector=enableAudioTap: original=0x10403dc00 replacement=0x10f290834
+audio-tap hook installed class=BMPlayerSource selector=setShouldEnableAudioTap: original=0x10786eea4 replacement=0x10f2908f4
+audio-tap hook installed class=BMPlayerSource selector=shouldEnableAudioTap original=0x100e70c30 replacement=0x10f2909b4
+audio-tap hook installed class=BMPlayerSource selector=updateAudioTapForPlayerItem: original=0x1045dac64 replacement=0x10f290a7c
+audio-tap hook installed class=BMPlayerSource selector=setItemWaitingForAudioTap: original=0x1045d76d4 replacement=0x10f290db0
+audio-tap hook installed class=BMPlayerSource selector=playerItem original=0x1033cee4c replacement=0x10f290f74
+audio-tap hook installed class=BMPlayerSource selector=loadPlayerItem original=0x104149ee8 replacement=0x10f291254
+audio-tap hook installed class=BMPlayerSource selector=currentPlayerItemChanged:object: original=0x100fef690 replacement=0x10f291310
+audio-tap hook installed class=BMPlayerSource selector=didChangePlayerItemStatus:playerItem: original=0x10313f67c replacement=0x10f2915f8
+audio-tap hook installed class=BMPlayerSource selector=itemContainer original=0x105600014 replacement=0x10f2918e0
+audio-tap hook installed class=BMPlayerSource selector=player original=0x10193206c replacement=0x10f291ad4
+audio-tap hook installed class=BMBetamaxPlayerImpl selector=playerSource original=0x1034f9a60 replacement=0x10f291cc8
+audio-tap hook installed class=BMAudioTap selector=initWithPlayerItem:appStateObservable:delegate: original=0x1080ff3d4 replacement=0x10f291ebc
+audio-tap hook installed class=BMAudioTap selector=isEnabled original=0x105c4e8ac replacement=0x10f29217c
+audio-tap hook installed class=BMAudioTap selector=stopProcessing original=0x1078260a8 replacement=0x10f292244
+audio-tap hook installed class=MultiPlayer_PlayerImpl.MultiPlayerAudioTap selector=audioTapDidEmitOutput: original=0x107882f4c replacement=0x10f2922e4
 --- snapshot: 3 seconds after launch ---
 bundle=com.s.z version=9.1.90 build=919002269
-symbol SGAutoMixSupportedVersion: FOUND 0x1120bb1ac
-symbol SGAutoMixEnabled: FOUND 0x1120bb204
-symbol SGAutoMixUsesBeatMatching: FOUND 0x1120bb214
-symbol SGAutoMixBlendSeconds: FOUND 0x1120bb23c
-symbol SGAutoMixPlayerAvailable: FOUND 0x1120bc29c
-symbol SGAutoMixApplyCurrentPlayback: FOUND 0x1120bc340
-symbol SGAutoMixPlayerStateChanged: FOUND 0x1120bd1a8
-symbol SGAutoMixSettingsChanged: FOUND 0x1120bd544
-symbol SGAutoMixStatus: FOUND 0x1120bd590
-symbol SGAutoMixLastTransition: FOUND 0x1120bd5b8
-symbol SGAutoMixHasTransition: FOUND 0x1120bb564
-symbol SGAutoMixConfiguration: FOUND 0x1120bba2c
+symbol SGAutoMixSupportedVersion: FOUND 0x11000f1ac
+symbol SGAutoMixEnabled: FOUND 0x11000f204
+symbol SGAutoMixUsesBeatMatching: FOUND 0x11000f214
+symbol SGAutoMixBlendSeconds: FOUND 0x11000f23c
+symbol SGAutoMixPlayerAvailable: FOUND 0x11001029c
+symbol SGAutoMixApplyCurrentPlayback: FOUND 0x110010340
+symbol SGAutoMixPlayerStateChanged: FOUND 0x1100111a8
+symbol SGAutoMixSettingsChanged: FOUND 0x110011544
+symbol SGAutoMixStatus: FOUND 0x110011590
+symbol SGAutoMixLastTransition: FOUND 0x1100115b8
+symbol SGAutoMixHasTransition: FOUND 0x11000f564
+symbol SGAutoMixConfiguration: FOUND 0x11000fa2c
 defaults[spotifyglass.automix]=<unset>
 defaults[spotifyglass.automix.savedPreferences]=<unset>
 defaults[spotifyglass.automix.style]=<unset>
@@ -187,22 +192,24 @@ defaults[audioCrossfade]=<unset>
 defaults[audioCrossfadeTime]=<unset>
 audioSession category=AVAudioSessionCategorySoloAmbient mode=AVAudioSessionModeDefault sampleRate=48000.0 outputLatency=0.0154
 audioOutput=Speaker type=Speaker
-notification=UIApplicationDidBecomeActiveNotification object=<MusicApp_ContainerWiring.SpotifyUIApplication: 0x1128060b0> userInfo={
+notification=UIApplicationDidBecomeActiveNotification object=<MusicApp_ContainerWiring.SpotifyUIApplication: 0x110c2ad50> userInfo={
+}
+notification=UIApplicationDidBecomeActiveNotification object=<MusicApp_ContainerWiring.SpotifyUIApplication: 0x110c2ad50> userInfo={
 }
 --- snapshot: 30 seconds after launch ---
 bundle=com.s.z version=9.1.90 build=919002269
-symbol SGAutoMixSupportedVersion: FOUND 0x1120bb1ac
-symbol SGAutoMixEnabled: FOUND 0x1120bb204
-symbol SGAutoMixUsesBeatMatching: FOUND 0x1120bb214
-symbol SGAutoMixBlendSeconds: FOUND 0x1120bb23c
-symbol SGAutoMixPlayerAvailable: FOUND 0x1120bc29c
-symbol SGAutoMixApplyCurrentPlayback: FOUND 0x1120bc340
-symbol SGAutoMixPlayerStateChanged: FOUND 0x1120bd1a8
-symbol SGAutoMixSettingsChanged: FOUND 0x1120bd544
-symbol SGAutoMixStatus: FOUND 0x1120bd590
-symbol SGAutoMixLastTransition: FOUND 0x1120bd5b8
-symbol SGAutoMixHasTransition: FOUND 0x1120bb564
-symbol SGAutoMixConfiguration: FOUND 0x1120bba2c
+symbol SGAutoMixSupportedVersion: FOUND 0x11000f1ac
+symbol SGAutoMixEnabled: FOUND 0x11000f204
+symbol SGAutoMixUsesBeatMatching: FOUND 0x11000f214
+symbol SGAutoMixBlendSeconds: FOUND 0x11000f23c
+symbol SGAutoMixPlayerAvailable: FOUND 0x11001029c
+symbol SGAutoMixApplyCurrentPlayback: FOUND 0x110010340
+symbol SGAutoMixPlayerStateChanged: FOUND 0x1100111a8
+symbol SGAutoMixSettingsChanged: FOUND 0x110011544
+symbol SGAutoMixStatus: FOUND 0x110011590
+symbol SGAutoMixLastTransition: FOUND 0x1100115b8
+symbol SGAutoMixHasTransition: FOUND 0x11000f564
+symbol SGAutoMixConfiguration: FOUND 0x11000fa2c
 defaults[spotifyglass.automix]=1
 defaults[spotifyglass.automix.savedPreferences]={
     automix = 1;
