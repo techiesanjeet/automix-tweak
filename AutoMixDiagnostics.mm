@@ -155,6 +155,11 @@ static IMP gOrigPlayerSourceUpdateAudioTapForPlayerItem;
 static IMP gOrigPlayerSourceSetItemWaitingForAudioTap;
 static IMP gOrigPlayerSourcePlayerItem;
 static IMP gOrigPlayerSourceLoadPlayerItem;
+static IMP gOrigPlayerSourceCurrentItemChanged;
+static IMP gOrigPlayerSourceDidChangeItemStatus;
+static IMP gOrigPlayerSourceItemContainer;
+static IMP gOrigPlayerSourcePlayer;
+static IMP gOrigBetamaxPlayerSource;
 
 static IMP gOrigTapInit;
 static IMP gOrigTapIsEnabled;
@@ -280,6 +285,41 @@ static void AMHookPlayerSourceLoadPlayerItem(id self, SEL cmd) {
     AMLog(@"BMPlayerSource loadPlayerItem returned self=%p", self);
 }
 
+static void AMHookPlayerSourceCurrentItemChanged(id self, SEL cmd, id first, id second) {
+    AMLog(@"BMPlayerSource currentPlayerItemChanged self=%p first=%p firstClass=%@ second=%p secondClass=%@",
+          self, first, first ? NSStringFromClass([first class]) : @"<nil>",
+          second, second ? NSStringFromClass([second class]) : @"<nil>");
+    ((void (*)(id, SEL, id, id))gOrigPlayerSourceCurrentItemChanged)(self, cmd, first, second);
+}
+
+static void AMHookPlayerSourceDidChangeItemStatus(id self, SEL cmd, id first, id second) {
+    AMLog(@"BMPlayerSource didChangePlayerItemStatus self=%p first=%p firstClass=%@ second=%p secondClass=%@",
+          self, first, first ? NSStringFromClass([first class]) : @"<nil>",
+          second, second ? NSStringFromClass([second class]) : @"<nil>");
+    ((void (*)(id, SEL, id, id))gOrigPlayerSourceDidChangeItemStatus)(self, cmd, first, second);
+}
+
+static id AMHookPlayerSourceItemContainer(id self, SEL cmd) {
+    id value = ((id (*)(id, SEL))gOrigPlayerSourceItemContainer)(self, cmd);
+    AMLog(@"BMPlayerSource itemContainer getter self=%p value=%p class=%@",
+          self, value, value ? NSStringFromClass([value class]) : @"<nil>");
+    return value;
+}
+
+static id AMHookPlayerSourcePlayer(id self, SEL cmd) {
+    id value = ((id (*)(id, SEL))gOrigPlayerSourcePlayer)(self, cmd);
+    AMLog(@"BMPlayerSource player getter self=%p value=%p class=%@",
+          self, value, value ? NSStringFromClass([value class]) : @"<nil>");
+    return value;
+}
+
+static id AMHookBetamaxPlayerSource(id self, SEL cmd) {
+    id value = ((id (*)(id, SEL))gOrigBetamaxPlayerSource)(self, cmd);
+    AMLog(@"BMBetamaxPlayerImpl playerSource getter self=%p value=%p class=%@",
+          self, value, value ? NSStringFromClass([value class]) : @"<nil>");
+    return value;
+}
+
 static BOOL AMHookInstanceMethod(Class cls, SEL selector, IMP replacement, IMP *original) {
     if (!cls) return NO;
     Method method = class_getInstanceMethod(cls, selector);
@@ -380,6 +420,16 @@ static void AMInstallAudioTapHooks(void) {
                          (IMP)AMHookPlayerSourcePlayerItem, &gOrigPlayerSourcePlayerItem);
     AMHookInstanceMethod(playerSource, @selector(loadPlayerItem),
                          (IMP)AMHookPlayerSourceLoadPlayerItem, &gOrigPlayerSourceLoadPlayerItem);
+    AMHookInstanceMethod(playerSource, @selector(currentPlayerItemChanged:object:),
+                         (IMP)AMHookPlayerSourceCurrentItemChanged, &gOrigPlayerSourceCurrentItemChanged);
+    AMHookInstanceMethod(playerSource, @selector(didChangePlayerItemStatus:playerItem:),
+                         (IMP)AMHookPlayerSourceDidChangeItemStatus, &gOrigPlayerSourceDidChangeItemStatus);
+    AMHookInstanceMethod(playerSource, @selector(itemContainer),
+                         (IMP)AMHookPlayerSourceItemContainer, &gOrigPlayerSourceItemContainer);
+    AMHookInstanceMethod(playerSource, @selector(player),
+                         (IMP)AMHookPlayerSourcePlayer, &gOrigPlayerSourcePlayer);
+    AMHookInstanceMethod(betamax, @selector(playerSource),
+                         (IMP)AMHookBetamaxPlayerSource, &gOrigBetamaxPlayerSource);
     AMHookInstanceMethod(tap, @selector(initWithPlayerItem:appStateObservable:delegate:),
                          (IMP)AMHookTapInit, &gOrigTapInit);
     AMHookInstanceMethod(tap, @selector(isEnabled), (IMP)AMHookTapIsEnabled, &gOrigTapIsEnabled);
