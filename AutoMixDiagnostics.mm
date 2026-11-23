@@ -153,6 +153,8 @@ static IMP gOrigPlayerSourceSetShouldEnableAudioTap;
 static IMP gOrigPlayerSourceShouldEnableAudioTap;
 static IMP gOrigPlayerSourceUpdateAudioTapForPlayerItem;
 static IMP gOrigPlayerSourceSetItemWaitingForAudioTap;
+static IMP gOrigPlayerSourcePlayerItem;
+static IMP gOrigPlayerSourceLoadPlayerItem;
 
 static IMP gOrigTapInit;
 static IMP gOrigTapIsEnabled;
@@ -262,6 +264,22 @@ static void AMHookPlayerSourceSetItemWaitingForAudioTap(id self, SEL cmd, id ite
     ((void (*)(id, SEL, id))gOrigPlayerSourceSetItemWaitingForAudioTap)(self, cmd, item);
 }
 
+static id AMHookPlayerSourcePlayerItem(id self, SEL cmd) {
+    id item = ((id (*)(id, SEL))gOrigPlayerSourcePlayerItem)(self, cmd);
+    NSString *status = @"<not AVPlayerItem>";
+    if ([item isKindOfClass:AVPlayerItem.class])
+        status = [NSString stringWithFormat:@"%ld", (long)((AVPlayerItem *)item).status];
+    AMLog(@"BMPlayerSource playerItem getter self=%p item=%p class=%@ status=%@",
+          self, item, item ? NSStringFromClass([item class]) : @"<nil>", status);
+    return item;
+}
+
+static void AMHookPlayerSourceLoadPlayerItem(id self, SEL cmd) {
+    AMLog(@"BMPlayerSource loadPlayerItem entered self=%p", self);
+    ((void (*)(id, SEL))gOrigPlayerSourceLoadPlayerItem)(self, cmd);
+    AMLog(@"BMPlayerSource loadPlayerItem returned self=%p", self);
+}
+
 static BOOL AMHookInstanceMethod(Class cls, SEL selector, IMP replacement, IMP *original) {
     if (!cls) return NO;
     Method method = class_getInstanceMethod(cls, selector);
@@ -291,8 +309,8 @@ static void AMDumpClassSurface(Class cls) {
                 [lower containsString:@"source"] || [lower containsString:@"tap"] ||
                 [lower containsString:@"audio"]) {
                 char *types = method_copyReturnType(methods[i]);
-                AMLog(@"runtime method %@ %@ encoding=%s imp=%p", NSStringFromClass(current),
-                      name, types ?: "?", method_getImplementation(methods[i]));
+                AMLog(@"runtime method %@ %@ return=%s types=%s imp=%p", NSStringFromClass(current),
+                      name, types ?: "?", method_getTypeEncoding(methods[i]) ?: "?", method_getImplementation(methods[i]));
                 free(types);
             }
         }
@@ -358,6 +376,10 @@ static void AMInstallAudioTapHooks(void) {
                          (IMP)AMHookPlayerSourceUpdateAudioTapForPlayerItem, &gOrigPlayerSourceUpdateAudioTapForPlayerItem);
     AMHookInstanceMethod(playerSource, @selector(setItemWaitingForAudioTap:),
                          (IMP)AMHookPlayerSourceSetItemWaitingForAudioTap, &gOrigPlayerSourceSetItemWaitingForAudioTap);
+    AMHookInstanceMethod(playerSource, @selector(playerItem),
+                         (IMP)AMHookPlayerSourcePlayerItem, &gOrigPlayerSourcePlayerItem);
+    AMHookInstanceMethod(playerSource, @selector(loadPlayerItem),
+                         (IMP)AMHookPlayerSourceLoadPlayerItem, &gOrigPlayerSourceLoadPlayerItem);
     AMHookInstanceMethod(tap, @selector(initWithPlayerItem:appStateObservable:delegate:),
                          (IMP)AMHookTapInit, &gOrigTapInit);
     AMHookInstanceMethod(tap, @selector(isEnabled), (IMP)AMHookTapIsEnabled, &gOrigTapIsEnabled);
