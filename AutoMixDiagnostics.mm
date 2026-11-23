@@ -4,6 +4,7 @@
 #import <dlfcn.h>
 #import <stdarg.h>
 #import <objc/runtime.h>
+#import <objc/message.h>
 
 static NSMutableString *gLog;
 static NSMutableArray *gObservers;
