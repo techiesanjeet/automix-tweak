@@ -7,6 +7,7 @@
 
 static NSMutableString *gLog;
 static NSMutableArray *gObservers;
+static NSMutableSet *gHookedMethods;
 
 static void AMLog(NSString *format, ...) {
     va_list args;
@@ -160,6 +161,8 @@ static IMP gOrigPlayerSourceDidChangeItemStatus;
 static IMP gOrigPlayerSourceItemContainer;
 static IMP gOrigPlayerSourcePlayer;
 static IMP gOrigBetamaxPlayerSource;
+static IMP gOrigPlayerSourceInit;
+static IMP gOrigBetamaxSetPlayerSource;
 
 static IMP gOrigTapInit;
 static IMP gOrigTapIsEnabled;
@@ -320,8 +323,38 @@ static id AMHookBetamaxPlayerSource(id self, SEL cmd) {
     return value;
 }
 
+// Construction/attachment probes establish whether this class is the live
+// playback source. Runtime encoding confirms nine object arguments.
+static id AMHookPlayerSourceInit(id self, SEL cmd, id configuration,
+    id itemContainerFactory, id avFactory, id kvoControllerFactory,
+    id playerItemObservableFactory, id playerTrackSelectorFactory,
+    id metadataTypesProvider, id audioTapFactory, id notificationCenter) {
+    AMLog(@"BMPlayerSource init entered self=%p config=%p containerFactory=%p avFactory=%p kvoFactory=%p itemObservableFactory=%p trackSelectorFactory=%p metadataProvider=%p audioTapFactory=%p notificationCenter=%p",
+          self, configuration, itemContainerFactory, avFactory, kvoControllerFactory,
+          playerItemObservableFactory, playerTrackSelectorFactory, metadataTypesProvider,
+          audioTapFactory, notificationCenter);
+    id result = ((id (*)(id, SEL, id, id, id, id, id, id, id, id, id))gOrigPlayerSourceInit)(
+        self, cmd, configuration, itemContainerFactory, avFactory, kvoControllerFactory,
+        playerItemObservableFactory, playerTrackSelectorFactory, metadataTypesProvider,
+        audioTapFactory, notificationCenter);
+    AMLog(@"BMPlayerSource init returned self=%p result=%p class=%@", self, result,
+          result ? NSStringFromClass([result class]) : @"<nil>");
+    return result;
+}
+
+static void AMHookBetamaxSetPlayerSource(id self, SEL cmd, id source) {
+    AMLog(@"BMBetamaxPlayerImpl setPlayerSource entered player=%p source=%p class=%@",
+          self, source, source ? NSStringFromClass([source class]) : @"<nil>");
+    ((void (*)(id, SEL, id))gOrigBetamaxSetPlayerSource)(self, cmd, source);
+    AMLog(@"BMBetamaxPlayerImpl setPlayerSource returned player=%p", self);
+}
+
 static BOOL AMHookInstanceMethod(Class cls, SEL selector, IMP replacement, IMP *original) {
     if (!cls) return NO;
+    NSString *hookKey = [NSString stringWithFormat:@"%p:%@", cls, NSStringFromSelector(selector)];
+    @synchronized (gHookedMethods) {
+        if ([gHookedMethods containsObject:hookKey]) return YES;
+    }
     Method method = class_getInstanceMethod(cls, selector);
     if (!method) {
         AMLog(@"audio-tap hook unavailable class=%@ selector=%@", NSStringFromClass(cls), NSStringFromSelector(selector));
@@ -330,6 +363,9 @@ static BOOL AMHookInstanceMethod(Class cls, SEL selector, IMP replacement, IMP *
     *original = method_setImplementation(method, replacement);
     AMLog(@"audio-tap hook installed class=%@ selector=%@ original=%p replacement=%p",
           NSStringFromClass(cls), NSStringFromSelector(selector), *original, replacement);
+    if (*original) {
+        @synchronized (gHookedMethods) { [gHookedMethods addObject:hookKey]; }
+    }
     return *original != NULL;
 }
 
@@ -430,6 +466,11 @@ static void AMInstallAudioTapHooks(void) {
                          (IMP)AMHookPlayerSourcePlayer, &gOrigPlayerSourcePlayer);
     AMHookInstanceMethod(betamax, @selector(playerSource),
                          (IMP)AMHookBetamaxPlayerSource, &gOrigBetamaxPlayerSource);
+    AMHookInstanceMethod(playerSource,
+        @selector(initWithPlayerConfiguration:itemContainerFactory:avFactory:kvoControllerFactory:playerItemObservableFactory:playerTrackSelectorFactory:metadataTypesProvider:audioTapFactory:notificationCenter:),
+        (IMP)AMHookPlayerSourceInit, &gOrigPlayerSourceInit);
+    AMHookInstanceMethod(betamax, @selector(setPlayerSource:),
+        (IMP)AMHookBetamaxSetPlayerSource, &gOrigBetamaxSetPlayerSource);
     AMHookInstanceMethod(tap, @selector(initWithPlayerItem:appStateObservable:delegate:),
                          (IMP)AMHookTapInit, &gOrigTapInit);
     AMHookInstanceMethod(tap, @selector(isEnabled), (IMP)AMHookTapIsEnabled, &gOrigTapIsEnabled);
@@ -443,12 +484,16 @@ static void AMDiagnosticsInit(void) {
     @autoreleasepool {
         gLog = [NSMutableString new];
         gObservers = [NSMutableArray new];
+        gHookedMethods = [NSMutableSet new];
         AMLog(@"AutoMix diagnostics loaded; observation only; no private playback methods are called.");
         AMObserveNotification(@"SGAutoMixStatusDidChangeNotification");
         AMObserveNotification(@"SGPlayerTransitionNotification");
         AMObserveNotification(@"SGPlayerTransitionEndedNotification");
         AMObserveNotification(@"UIApplicationDidBecomeActiveNotification");
         AMCollectSnapshot(@"dylib load");
+        // Install at dylib load to catch player-source construction; the
+        // delayed pass retries any classes not registered yet.
+        AMInstallAudioTapHooks();
 
         dispatch_async(dispatch_get_main_queue(), ^{
             dispatch_after(dispatch_time(DISPATCH_TIME_NOW, 3 * NSEC_PER_SEC), dispatch_get_main_queue(), ^{
