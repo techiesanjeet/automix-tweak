@@ -164,6 +164,72 @@ static IMP gOrigBetamaxPlayerSource;
 static IMP gOrigPlayerSourceInit;
 static IMP gOrigBetamaxSetPlayerSource;
 
+static IMP gOrigAVPlayerInitWithItem;
+static IMP gOrigAVPlayerReplaceItem;
+static IMP gOrigAVPlayerPlay;
+static IMP gOrigAVPlayerPlayImmediately;
+static IMP gOrigAVPlayerSetRate;
+
+static NSString *AMItemDescription(id item) {
+    if (!item) return @"<nil>";
+    NSString *cls = NSStringFromClass([item class]);
+    if ([item isKindOfClass:AVPlayerItem.class]) {
+        AVPlayerItem *avItem = (AVPlayerItem *)item;
+        return [NSString stringWithFormat:@"%@ status=%ld duration=%.3f",
+            cls, (long)avItem.status, CMTimeGetSeconds(avItem.duration)];
+    }
+    return cls;
+}
+
+static id AMHookAVPlayerInitWithItem(id self, SEL cmd, id item) {
+    AMLog(@"AVPlayer initWithPlayerItem entered player=%p item=%p %@", self, item, AMItemDescription(item));
+    id result = ((id (*)(id, SEL, id))gOrigAVPlayerInitWithItem)(self, cmd, item);
+    AMLog(@"AVPlayer initWithPlayerItem returned player=%p result=%p", self, result);
+    return result;
+}
+
+static void AMHookAVPlayerReplaceItem(id self, SEL cmd, id item) {
+    AMLog(@"AVPlayer replaceCurrentItem player=%p newItem=%p %@", self, item, AMItemDescription(item));
+    ((void (*)(id, SEL, id))gOrigAVPlayerReplaceItem)(self, cmd, item);
+}
+
+static void AMHookAVPlayerPlay(id self, SEL cmd) {
+    id item = ((id (*)(id, SEL))objc_msgSend)(self, @selector(currentItem));
+    AMLog(@"AVPlayer play player=%p item=%p %@", self, item, AMItemDescription(item));
+    ((void (*)(id, SEL))gOrigAVPlayerPlay)(self, cmd);
+}
+
+static void AMHookAVPlayerPlayImmediately(id self, SEL cmd, float rate) {
+    id item = ((id (*)(id, SEL))objc_msgSend)(self, @selector(currentItem));
+    AMLog(@"AVPlayer playImmediatelyAtRate player=%p rate=%.3f item=%p %@", self, rate, item, AMItemDescription(item));
+    ((void (*)(id, SEL, float))gOrigAVPlayerPlayImmediately)(self, cmd, rate);
+}
+
+static void AMHookAVPlayerSetRate(id self, SEL cmd, float rate) {
+    id item = ((id (*)(id, SEL))objc_msgSend)(self, @selector(currentItem));
+    AMLog(@"AVPlayer setRate player=%p rate=%.3f item=%p %@", self, rate, item, AMItemDescription(item));
+    ((void (*)(id, SEL, float))gOrigAVPlayerSetRate)(self, cmd, rate);
+}
+
+static void AMLogPlaybackClassInventory(void) {
+    int count = objc_getClassList(NULL, 0);
+    if (count <= 0) return;
+    Class *classes = (Class *)calloc((size_t)count, sizeof(Class));
+    int actual = objc_getClassList(classes, count);
+    unsigned logged = 0;
+    for (int i = 0; i < actual && logged < 100; i++) {
+        NSString *name = NSStringFromClass(classes[i]);
+        NSString *lower = name.lowercaseString;
+        if ([lower containsString:@"multiplayer"] || [lower containsString:@"playerimpl"] ||
+            [lower containsString:@"playback"] || [lower containsString:@"playersource"]) {
+            AMLog(@"playback class inventory %@", name);
+            logged++;
+        }
+    }
+    AMLog(@"playback class inventory totalMatchesLogged=%u runtimeClassCount=%d", logged, actual);
+    free(classes);
+}
+
 static IMP gOrigTapInit;
 static IMP gOrigTapIsEnabled;
 static IMP gOrigTapStop;
@@ -422,11 +488,27 @@ static void AMDumpClassSurface(Class cls) {
     }
 }
 
+static void AMInstallAVPlayerHooks(void) {
+    Class cls = AVPlayer.class;
+    AMHookInstanceMethod(cls, @selector(initWithPlayerItem:),
+        (IMP)AMHookAVPlayerInitWithItem, &gOrigAVPlayerInitWithItem);
+    AMHookInstanceMethod(cls, @selector(replaceCurrentItemWithPlayerItem:),
+        (IMP)AMHookAVPlayerReplaceItem, &gOrigAVPlayerReplaceItem);
+    AMHookInstanceMethod(cls, @selector(play),
+        (IMP)AMHookAVPlayerPlay, &gOrigAVPlayerPlay);
+    AMHookInstanceMethod(cls, @selector(playImmediatelyAtRate:),
+        (IMP)AMHookAVPlayerPlayImmediately, &gOrigAVPlayerPlayImmediately);
+    AMHookInstanceMethod(cls, @selector(setRate:),
+        (IMP)AMHookAVPlayerSetRate, &gOrigAVPlayerSetRate);
+}
+
 static void AMInstallAudioTapHooks(void) {
     Class factory = objc_getClass("BMAudioTapFactory");
     Class tap = objc_getClass("BMAudioTap");
     Class multiTap = objc_getClass("_TtC22MultiPlayer_PlayerImpl19MultiPlayerAudioTap");
     AMLog(@"audio-tap classes factory=%p tap=%p multiTap=%p", factory, tap, multiTap);
+    AMLogPlaybackClassInventory();
+    AMInstallAVPlayerHooks();
 
     AMHookInstanceMethod(factory, @selector(createAudioTapWithPlayerItem:completion:),
                          (IMP)AMHookTapFactoryCreate, &gOrigTapFactoryCreate);
